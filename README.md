@@ -13,11 +13,25 @@ The framework is project-agnostic. Each project supplies a local project profile
 
 ## Choose Your Platform
 
+Every platform now has a one-command install and update. From this repo's root:
+
+```powershell
+.\scripts\install.ps1 claude-code   # or: codex, antigravity, all
+```
+
+```bash
+./scripts/install.sh claude-code    # or: codex, antigravity, all
+```
+
+Re-run the same command after `git pull` to update. Requires Python 3.11+.
+
 | Platform     | Install doc                       | Spawn entry point                                |
 |--------------|-----------------------------------|--------------------------------------------------|
-| Codex        | `CODEX-CUSTOM-AGENTS.md`          | `Run the multiagent workflow` (uses `codex-skill/multiagent-workflow/`) |
+| Codex        | `codex-agents/INSTALL.md`         | `Run the multiagent workflow` (uses `codex-skill/multiagent-workflow/`) |
 | Claude Code  | `claude-code/INSTALL.md`          | `/multiagent <task>` (uses `claude-code/skill/multiagent-workflow/`)    |
 | Antigravity  | `antigravity/INSTALL.md`          | `/multiagent <task>` (uses `antigravity/skill/multiagent-workflow/`)    |
+
+For Codex background (agent communication model, skill configuration, model defaults) see `CODEX-CUSTOM-AGENTS.md`.
 
 All platforms run the same PM-led workflow against the same shared role docs in `roles/` and the same `scripts/multiagent_files.py` for run-folder and message persistence. The platform-specific adapters live in `codex-agents/` + `codex-skill/`, `claude-code/agents/` + `claude-code/skill/` + `claude-code/commands/`, and `antigravity/agents/` + `antigravity/skill/`.
 
@@ -152,8 +166,10 @@ Reviewer owns:
 - `COMMUNICATION-PROTOCOL.md`: standardized message types and message envelope.
 - `ORCHESTRATION.md`: routing rules and state machine.
 - `AGENTS.md`: maintenance instructions for this repo (canonical vs installed paths, verification, etc).
-- `CODEX-CUSTOM-AGENTS.md`: Codex-specific custom-agent install notes.
-- `claude-code/INSTALL.md`: Claude Code-specific install steps.
+- `codex-agents/INSTALL.md`: Codex install (one command).
+- `CODEX-CUSTOM-AGENTS.md`: Codex background reference (communication model, skill config, defaults).
+- `claude-code/INSTALL.md`: Claude Code install (one command).
+- `antigravity/INSTALL.md`: Antigravity install (one command).
 
 ## First Manual Run (Codex)
 
@@ -214,12 +230,12 @@ Not every platform exposes the same primitives. This table records which capabil
 | Session hooks (SessionStart / Stop)    | Partial (skill-level triggers)               | Yes (settings.json `hooks`)                  | No (no equivalent hook surface today)          |
 | Worktree / workspace isolation         | Partial (via `using-git-worktrees` skill)    | Yes (`Agent(..., isolation: "worktree")`)    | Yes (`Workspace: "share"` / `"branch"`)        |
 | Background / parallel subagent spawn   | Yes (parallel calls; native background)      | Yes (`run_in_background: true`; parallel `Agent` calls) | Yes (multiple entries in `Subagents` array) |
-| Install script                         | Yes (`python scripts/multiagent_files.py install-codex`) | No (manual copy per `claude-code/INSTALL.md`; deferred) | No (manual copy per `antigravity/INSTALL.md`; deferred) |
+| Install script                         | Yes (`scripts/install.{ps1,sh} codex`)       | Yes (`scripts/install.{ps1,sh} claude-code`; also wires hooks) | Yes (`scripts/install.{ps1,sh} antigravity`) |
 | Plan-mode approval gate                | Partial (recognition skill guides flow)      | Yes (`EnterPlanMode` / `ExitPlanMode`)       | Yes (`permissionMode: plan` in agent frontmatter) |
 | MCP tools                              | Yes                                          | Yes                                          | Yes (`enable_mcp_tools`)                       |
 | Install validator                      | Yes (`validate-install --platform codex`)    | Yes (`validate-install --platform claude-code`) | Yes (`validate-install --platform antigravity`) |
 
-Deferred: install scripts for Claude Code and Antigravity are in `FUTURE-PLANS.md`. When a platform column changes, update this table and note the driver in `CHANGELOG.md`.
+When a platform column changes, update this table and note the driver in `CHANGELOG.md`.
 
 ## Recognition Troubleshooting
 
@@ -254,15 +270,21 @@ Before closing, agents should consider whether a context-maintenance skill (if i
 
 ## Automation Helper
 
-Use `scripts/multiagent_files.py` for repeatable workflow artifacts:
+Two Python entry points, one per concern:
+
+- `scripts/multiagent_files.py` — **runtime**, called by agents during an active workflow.
+- `scripts/install.py` — **install-time**, called once per machine to set up a CLI platform and verify the result.
 
 ```powershell
+# Runtime (agents call these during a run):
 python scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
 python scripts\multiagent_files.py append-message --run <run-dir> --from-role pm --to-role developer --type task_assignment --title "<title>" --body "<body>"
 python scripts\multiagent_files.py status --run <run-dir>
-python scripts\multiagent_files.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform codex
-python scripts\multiagent_files.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform claude-code
-python scripts\multiagent_files.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform antigravity
+
+# Install-time (invoked via the shell wrappers or directly):
+python scripts\install.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform codex
+python scripts\install.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform claude-code
+python scripts\install.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform antigravity
 ```
 
-The helper owns file creation, message IDs, JSONL indexing, role registry defaults, and install validation. Agents still own product, implementation, and review judgment. Workers self-log their own inter-agent messages via `append-message`; PM additionally logs task assignments, escalation events, and closeouts.
+Runtime owns file creation, message IDs, JSONL indexing, and role registry defaults. Install owns platform setup, hook wiring, and install validation. Both share constants and small helpers via `scripts/_common.py`. Agents still own product, implementation, and review judgment. Workers self-log their own inter-agent messages via `append-message`; PM additionally logs task assignments, escalation events, and closeouts.

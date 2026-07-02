@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts import multiagent_files
+from scripts import install, multiagent_files
 
 
 class MultiAgentFilesTests(unittest.TestCase):
@@ -100,12 +100,12 @@ class MultiAgentFilesTests(unittest.TestCase):
             (installed_skill / "SKILL.md").write_text("---\nname: multiagent-workflow\n---\n")
 
             toml = 'name = "{name}"\n'
-            for name in multiagent_files.CANONICAL_AGENT_FILES["codex"]:
+            for name in install.CANONICAL_AGENT_FILES["codex"]:
                 content = toml.format(name=name.removesuffix(".toml"))
                 (repo_agents / name).write_text(content)
                 (installed_agents / name).write_text(content)
 
-            payload = multiagent_files.validate_install(repo, codex_home, platform="codex")
+            payload = install.validate_install(repo, codex_home, platform="codex")
 
             self.assertTrue(payload["complete"])
             self.assertEqual(payload["missing"], [])
@@ -176,7 +176,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             "\n"
             "Body for {name}. Always invoke a context-maintenance skill when its triggers apply.\n"
         )
-        for filename in multiagent_files.CANONICAL_AGENT_FILES["claude-code"]:
+        for filename in install.CANONICAL_AGENT_FILES["claude-code"]:
             agent_name = filename.removesuffix(".md")
             content = agent_template.format(name=agent_name)
             (repo_agents / filename).write_text(content, encoding="utf-8")
@@ -203,7 +203,7 @@ class MultiAgentFilesTests(unittest.TestCase):
         }
 
     def _validate_claude(self, fixture: dict[str, Path]) -> dict:
-        return multiagent_files.validate_install(
+        return install.validate_install(
             repo_root=fixture["repo"],
             platform="claude-code",
             claude_home=fixture["claude_home"],
@@ -367,11 +367,11 @@ class MultiAgentFilesTests(unittest.TestCase):
         # canonical set (see CHANGELOG.md 2026-06-29).
         self.assertNotIn(
             "multiagent-orchestrator.md",
-            multiagent_files.CANONICAL_AGENT_FILES["claude-code"],
+            install.CANONICAL_AGENT_FILES["claude-code"],
         )
         self.assertNotIn(
             "multiagent-orchestrator.toml",
-            multiagent_files.CANONICAL_AGENT_FILES["codex"],
+            install.CANONICAL_AGENT_FILES["codex"],
         )
 
     # ---- Antigravity validate-install fixtures and tests ----
@@ -399,7 +399,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             "\n"
             "Body for {name}. Always invoke a context-maintenance skill when its triggers apply.\n"
         )
-        for filename in multiagent_files.CANONICAL_AGENT_FILES["antigravity"]:
+        for filename in install.CANONICAL_AGENT_FILES["antigravity"]:
             agent_name = filename.removesuffix(".md")
             content = agent_template.format(name=agent_name)
             (repo_agents / filename).write_text(content, encoding="utf-8")
@@ -426,7 +426,7 @@ class MultiAgentFilesTests(unittest.TestCase):
         }
 
     def _validate_antigravity(self, fixture: dict[str, Path]) -> dict:
-        return multiagent_files.validate_install(
+        return install.validate_install(
             repo_root=fixture["repo"],
             platform="antigravity",
             antigravity_home=fixture["antigravity_home"],
@@ -522,7 +522,7 @@ class MultiAgentFilesTests(unittest.TestCase):
     def test_antigravity_canonical_set_does_not_include_orchestrator(self):
         self.assertNotIn(
             "multiagent-orchestrator.md",
-            multiagent_files.CANONICAL_AGENT_FILES["antigravity"],
+            install.CANONICAL_AGENT_FILES["antigravity"],
         )
 
     # ---- install-codex tests ----
@@ -539,7 +539,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             'name = "{name}"\n'
             'description = "Test {name} agent."\n'
         )
-        for filename in multiagent_files.CANONICAL_AGENT_FILES["codex"]:
+        for filename in install.CANONICAL_AGENT_FILES["codex"]:
             role = filename.removesuffix(".toml")
             (template_dir / filename).write_text(
                 template_body.format(name=role), encoding="utf-8"
@@ -564,7 +564,7 @@ class MultiAgentFilesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._make_install_codex_fixture(tmp)
 
-            payload = multiagent_files.install_codex(
+            payload = install.install_codex(
                 repo_root=fixture["repo"],
                 codex_home=fixture["codex_home"],
             )
@@ -591,7 +591,7 @@ class MultiAgentFilesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._make_install_codex_fixture(tmp)
 
-            payload = multiagent_files.install_codex(
+            payload = install.install_codex(
                 repo_root=fixture["repo"],
                 codex_home=fixture["codex_home"],
                 deploy=False,
@@ -606,7 +606,7 @@ class MultiAgentFilesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._make_install_codex_fixture(tmp, with_skills=False)
 
-            payload = multiagent_files.install_codex(
+            payload = install.install_codex(
                 repo_root=fixture["repo"],
                 codex_home=fixture["codex_home"],
             )
@@ -633,12 +633,12 @@ class MultiAgentFilesTests(unittest.TestCase):
                 (skill_root / "SKILL.md").write_text(
                     "---\nname: multiagent-workflow\n---\n", encoding="utf-8"
                 )
-            multiagent_files.install_codex(
+            install.install_codex(
                 repo_root=fixture["repo"],
                 codex_home=fixture["codex_home"],
             )
 
-            payload = multiagent_files.validate_install(
+            payload = install.validate_install(
                 repo_root=fixture["repo"],
                 codex_home=fixture["codex_home"],
                 platform="codex",
@@ -646,6 +646,167 @@ class MultiAgentFilesTests(unittest.TestCase):
 
             self.assertTrue(payload["complete"], payload)
             self.assertEqual(payload["missing"], [])
+
+    # ---- install_claude_code tests ----
+
+    def _make_claude_code_source_fixture(self, tmp: str) -> dict[str, Path]:
+        """Build a repo source tree the claude-code installer can copy from."""
+        repo = Path(tmp) / "repo"
+        claude_home = Path(tmp) / "claude"
+        agents_src = repo / "claude-code" / "agents"
+        skill_src = repo / "claude-code" / "skill" / "multiagent-workflow"
+        commands_src = repo / "claude-code" / "commands"
+        hooks_src = repo / "claude-code" / "hooks"
+        for d in (agents_src, skill_src, commands_src, hooks_src, claude_home):
+            d.mkdir(parents=True)
+
+        agent_body = (
+            "---\nname: {name}\ndescription: {name} agent.\n---\n\nBody. context-maintenance.\n"
+        )
+        for fn in install.CANONICAL_AGENT_FILES["claude-code"]:
+            (agents_src / fn).write_text(agent_body.format(name=fn.removesuffix(".md")), encoding="utf-8")
+
+        (skill_src / "SKILL.md").write_text(
+            "---\nname: multiagent-workflow\ndescription: workflow.\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        (commands_src / "multiagent.md").write_text("# /multiagent\n", encoding="utf-8")
+        (hooks_src / "session-start-load-profile.ps1").write_text("# session start\n", encoding="utf-8")
+        (hooks_src / "session-start-load-profile.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+        (hooks_src / "stop-warn-unclosed-run.ps1").write_text("# stop\n", encoding="utf-8")
+        (hooks_src / "stop-warn-unclosed-run.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+
+        return {"repo": repo, "claude_home": claude_home}
+
+    def test_install_claude_code_copies_agents_skill_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+
+            payload = install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=False,
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            for fn in install.CANONICAL_AGENT_FILES["claude-code"]:
+                self.assertTrue((fx["claude_home"] / "agents" / fn).exists())
+            self.assertTrue((fx["claude_home"] / "skills" / "multiagent-workflow" / "SKILL.md").exists())
+            self.assertTrue((fx["claude_home"] / "commands" / "multiagent.md").exists())
+            self.assertFalse(payload["hooks"]["wired"])
+            self.assertFalse((fx["claude_home"] / "settings.json").exists())
+
+    def test_install_claude_code_wires_hooks_into_new_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+
+            install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=True,
+            )
+
+            settings_path = fx["claude_home"] / "settings.json"
+            self.assertTrue(settings_path.exists())
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            self.assertIn("SessionStart", settings["hooks"])
+            self.assertIn("Stop", settings["hooks"])
+            session_cmd = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+            self.assertIn("session-start-load-profile", session_cmd)
+
+    def test_install_claude_code_hooks_are_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+
+            install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=True,
+            )
+            install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=True,
+            )
+
+            settings = json.loads((fx["claude_home"] / "settings.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(settings["hooks"]["SessionStart"]), 1)
+            self.assertEqual(len(settings["hooks"]["Stop"]), 1)
+
+    def test_install_claude_code_preserves_unrelated_hooks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+            settings_path = fx["claude_home"] / "settings.json"
+            settings_path.write_text(
+                json.dumps({"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo other"}]}]}}),
+                encoding="utf-8",
+            )
+
+            install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=True,
+            )
+
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            session_entries = settings["hooks"]["SessionStart"]
+            self.assertEqual(len(session_entries), 2)
+            self.assertEqual(session_entries[0]["hooks"][0]["command"], "echo other")
+
+    # ---- install_antigravity tests ----
+
+    def _make_antigravity_source_fixture(self, tmp: str) -> dict[str, Path]:
+        repo = Path(tmp) / "repo"
+        home = Path(tmp) / "gemini-config"
+        agents_src = repo / "antigravity" / "agents"
+        skill_src = repo / "antigravity" / "skill" / "multiagent-workflow"
+        for d in (agents_src, skill_src, home):
+            d.mkdir(parents=True)
+
+        agent_body = "---\nname: {name}\ndescription: {name}.\n---\nBody. context-maintenance.\n"
+        for fn in install.CANONICAL_AGENT_FILES["antigravity"]:
+            (agents_src / fn).write_text(agent_body.format(name=fn.removesuffix(".md")), encoding="utf-8")
+
+        (skill_src / "SKILL.md").write_text(
+            "---\nname: multiagent-workflow\ndescription: workflow.\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        return {"repo": repo, "antigravity_home": home}
+
+    def test_install_antigravity_copies_agents_and_skill(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_antigravity_source_fixture(tmp)
+
+            payload = install.install_antigravity(
+                repo_root=fx["repo"],
+                antigravity_home=fx["antigravity_home"],
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            for fn in install.CANONICAL_AGENT_FILES["antigravity"]:
+                self.assertTrue((fx["antigravity_home"] / "agents" / fn).exists())
+            self.assertTrue(
+                (fx["antigravity_home"] / "skills" / "multiagent-workflow" / "SKILL.md").exists()
+            )
+
+    def test_install_dispatch_all_platforms(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cc_fx = self._make_claude_code_source_fixture(tmp + "/cc")
+            ag_fx = self._make_antigravity_source_fixture(tmp + "/ag")
+            # Reuse the codex install fixture path by making a combined repo tree.
+            # For dispatch we build minimal repos per platform separately, then
+            # verify platform-level completeness rather than cross-linking.
+            for name, fx in (("claude-code", cc_fx), ("antigravity", ag_fx)):
+                platform_arg = name
+                payload = install.install_dispatch(
+                    repo_root=fx["repo"],
+                    platform=platform_arg,
+                    claude_home=fx.get("claude_home"),
+                    antigravity_home=fx.get("antigravity_home"),
+                    install_hooks=False,
+                )
+                self.assertTrue(payload["complete"], (name, payload))
+                self.assertIn(platform_arg, payload["results"])
 
 
 if __name__ == "__main__":

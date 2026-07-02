@@ -76,6 +76,6 @@ When Reviewer returns PASS:
 2. Start a new session.
 3. Run the validation command:
    ```powershell
-   python scripts/multiagent_files.py validate-install --platform antigravity
+   python scripts/install.py validate-install --platform antigravity
    ```
    If anything is missing, copy the agent and skill files to the configuration directory and retry.

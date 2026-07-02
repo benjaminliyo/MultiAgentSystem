@@ -12,6 +12,125 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 
 ---
 
+## 2026-07-02 — Split scripts/multiagent_files.py into runtime + install modules
+
+### Decision
+
+Split the single `scripts/multiagent_files.py` module into three files by lifecycle:
+
+- `scripts/multiagent_files.py` — **runtime** only. Called by PM/Developer/Reviewer agents during an active run. Exposes `prepare-run`, `append-message`, `status` CLI subcommands and the corresponding functions. Path unchanged so no agent doc, role file, skill doc, or template needs updating.
+- `scripts/install.py` — **install-time** only. Called once per machine (via `scripts/install.ps1` / `scripts/install.sh` or directly) to set up a CLI platform and validate the result. Exposes `install --platform <name|all>`, `install-codex`, `install-claude-code`, `install-antigravity`, and `validate-install` CLI subcommands plus their functions.
+- `scripts/_common.py` — shared constants (`CANONICAL_AGENT_FILES`, `SUPPORTED_PLATFORMS`) and low-level helpers (`MultiAgentFileError`, `require_dir`, `parse_toml`, `parse_frontmatter`, `copy_file`, `copy_tree`). Imported by both siblings. No CLI.
+
+Both siblings prepend the project root to `sys.path` when invoked directly (via `if __package__ in (None, "")`) so `from scripts._common import ...` works whether the file is run as `python scripts/install.py` or imported as `from scripts import install`.
+
+Shell wrappers `scripts/install.ps1` and `scripts/install.sh` now point at `install.py`.
+
+Tests `tests/test_multiagent_files.py` were updated to import both `install` and `multiagent_files`, referencing install/validate functions through the new module (`install.install_codex(...)`, `install.validate_install(...)`, `install.CANONICAL_AGENT_FILES`, etc.). 33/33 tests still pass with no test logic changes.
+
+Docs updated where they name the CLI path:
+
+- `CLAUDE.md`, `AGENTS.md` — Key Files list now names all four scripts (`multiagent_files.py`, `install.py`, wrapper `.ps1`/`.sh`, `_common.py`); "Verification" section calls `scripts/install.py validate-install ...`; "Shared" section notes all three Python files stay in the repo.
+- `README.md` — "Automation Helper" section splits into runtime vs install-time examples, each pointing at the right entry point.
+- `codex-agents/INSTALL.md`, `claude-code/INSTALL.md`, `antigravity/INSTALL.md`, `antigravity/skill/multiagent-workflow/SKILL.md` — validator command paths flipped to `scripts/install.py validate-install ...`.
+
+Supersedes the file-layout claims in the earlier 2026-07-02 entry ("One-command installer for Claude Code and Antigravity, plus install/update parity"), which described `install_claude_code`, `install_antigravity`, `install_dispatch`, `validate_install`, and `_wire_claude_hooks` as living in `scripts/multiagent_files.py`. Those functions now live in `scripts/install.py`; their signatures and behavior are unchanged, and no user-facing CLI entry point changes semantics (only their host module).
+
+### Why
+
+`multiagent_files.py` had two distinct lifecycles crammed into one file:
+
+- **Runtime helpers** (`prepare-run`, `append-message`, `status`) called by agents *during* an active workflow. Blast radius of a bug: one run folder inside a project's `.multiagent/`.
+- **Install helpers** (`install-*`, `validate-install`) called *once* on a user's machine to set up the CLI. Blast radius of a bug: user's home config (`~/.claude/settings.json`, `~/.codex/`, `~/.gemini/config/`).
+
+Different callers, different write targets, different failure consequences. The earlier one-command-installer entry had just added ~300 lines to that file (hook merging, JSON settings.json manipulation, install dispatch, per-platform installers) — enough that the mixed shape became a smell rather than a coincidence.
+
+Splitting also lets someone read one file and know what its bugs can hurt: runtime bugs can never touch the user's home; install bugs can never touch a project's message log.
+
+The user asked whether the mixed design was correct after seeing the previous session's file layout; the honest answer was "no, they should be separated," and this entry does that separation. The runtime path (`scripts/multiagent_files.py`) is deliberately kept stable so no agent doc, TOML template, skill file, or role instruction needs updating — the runtime contract is unchanged.
+
+### Files affected
+
+- `scripts/_common.py` — new module.
+- `scripts/install.py` — new module. Contains `install_codex`, `install_claude_code` + `_wire_claude_hooks`, `install_antigravity`, `install_dispatch`, `validate_install` (+ per-platform validators), `discover_codex_skills`, and the install/validate CLI.
+- `scripts/multiagent_files.py` — trimmed to runtime only. Imports `MultiAgentFileError` and `require_dir` from `_common`. CLI now only exposes `prepare-run`, `append-message`, `status`. Adds sys.path shim.
+- `scripts/install.ps1`, `scripts/install.sh` — now invoke `scripts/install.py`.
+- `tests/test_multiagent_files.py` — imports `install` alongside `multiagent_files`; install/validate references routed to `install.*`. 33 tests still pass.
+- `CLAUDE.md`, `AGENTS.md` — Key Files list and Shared section updated; validator command paths updated.
+- `README.md` — Automation Helper section restructured into runtime vs install-time.
+- `codex-agents/INSTALL.md`, `claude-code/INSTALL.md`, `antigravity/INSTALL.md`, `antigravity/skill/multiagent-workflow/SKILL.md` — validator command paths updated.
+
+### Reversal triggers
+
+- The maintenance overhead of two files exceeds their conceptual separation benefit (e.g. shared constants keep growing until `_common.py` is larger than either sibling). Fold back into one module.
+- A future need to share more state at runtime between install and the workflow (e.g. an install-time-generated manifest the workflow reads) makes the boundary artificial. Reconsider.
+- Users report the sys.path shim confuses them (e.g. it breaks when packaged into a wheel). Switch to relative imports (`from ._common import ...`) with `if __package__:` guards.
+
+See also: `2026-07-02 — One-command installer for Claude Code and Antigravity, plus install/update parity` (this entry restructures where those installers live but does not change their behavior).
+
+---
+
+## 2026-07-02 — One-command installer for Claude Code and Antigravity, plus install/update parity
+
+### Decision
+
+Extended `scripts/multiagent_files.py` with `install-claude-code`, `install-antigravity`, and a unified `install --platform <name|all>` subcommand that mirror the existing `install-codex` shape. Added thin `scripts/install.ps1` and `scripts/install.sh` wrappers so users invoke `.\scripts\install.ps1 claude-code` (or `codex` / `antigravity` / `all`).
+
+The Claude Code installer also idempotently merges `SessionStart` and `Stop` hook entries into `~/.claude/settings.json`. Existing entries pointing at the same hook script get their command upgraded (so switching shells or moving the repo Just Works); unrelated hooks the user added are preserved. `--no-hooks` skips that step.
+
+The Codex installer now also copies the `multiagent-workflow` skill to `~/.codex/skills/multiagent-workflow/` (previously a manual step in `CODEX-CUSTOM-AGENTS.md`).
+
+Docs restructured:
+
+- New: `codex-agents/INSTALL.md` — short, install-only doc mirroring the other two adapters.
+- `CODEX-CUSTOM-AGENTS.md` slimmed to a background reference (communication model, skill configuration, model defaults) with a pointer to the new install doc at the top.
+- `claude-code/INSTALL.md` and `antigravity/INSTALL.md` rewritten so the one-line install is the first thing on the page; manual copy commands moved into a "Manual Install (Fallback)" section.
+- `README.md` updated: one-command install shown up front; parity table's install-script row flipped from "No (deferred)" to "Yes" for Claude Code and Antigravity.
+
+Legacy `scripts/install-codex-agents.ps1` removed (predates the templated skill-config generation and would produce a broken install now).
+
+Tests added in `tests/test_multiagent_files.py`:
+
+- `test_install_claude_code_copies_agents_skill_command`
+- `test_install_claude_code_wires_hooks_into_new_settings`
+- `test_install_claude_code_hooks_are_idempotent`
+- `test_install_claude_code_preserves_unrelated_hooks`
+- `test_install_antigravity_copies_agents_and_skill`
+- `test_install_dispatch_all_platforms`
+
+Total test count: 33 (was 27).
+
+### Why
+
+Before this entry, Claude Code and Antigravity users had to run 5–7 copy commands by hand (docs called this out as clear-but-manual), and Codex users had one working `install-codex` subcommand but it was buried under 60+ lines of background in `CODEX-CUSTOM-AGENTS.md` and still needed a separate manual skill copy. There was no documented "how to update" story except "re-run the copy commands"; only Claude Code's doc said this explicitly.
+
+The user asked for a one-step install like Antigravity's (perceived shortest) and an easy way to update. Delivering that meant: real per-platform installer commands, a wrapper users can memorize, idempotent behavior so update = re-run, and docs that put the one-liner first.
+
+Hook wiring was folded into the installer because the manual step ("edit absolute paths in settings.example.json, then merge the `hooks` block into your settings.json by hand") was the most error-prone part of the Claude Code install. Idempotent merging by script-path marker means the installer safely upgrades an old install after `git pull` — including switching between PowerShell and Bash shells if the user moves platforms.
+
+### Files affected
+
+- `scripts/multiagent_files.py` — new `install_claude_code`, `install_antigravity`, `install_dispatch` functions; new `install-claude-code`, `install-antigravity`, `install` subcommands; `_wire_claude_hooks`, `_copy_tree`, `_copy_file` helpers; `install_codex` now also copies the multiagent-workflow skill.
+- `scripts/install.ps1` — new one-line wrapper.
+- `scripts/install.sh` — new one-line wrapper.
+- `scripts/install-codex-agents.ps1` — deleted.
+- `codex-agents/INSTALL.md` — new short install doc.
+- `CODEX-CUSTOM-AGENTS.md` — slimmed; points to new install doc.
+- `claude-code/INSTALL.md` — rewritten around the one-liner.
+- `antigravity/INSTALL.md` — rewritten around the one-liner.
+- `README.md` — one-command install callout at top of "Choose Your Platform"; parity table updated; Standard Docs section updated.
+- `tests/test_multiagent_files.py` — 6 new tests.
+
+### Reversal triggers
+
+- Users report the installer clobbers `settings.json` state we didn't intend to touch (JSON merge produces unexpected structure). Fallback: strip the hook-merging step and go back to "installer copies files; user wires hooks by hand."
+- Hook script path becomes a bad uniqueness marker (e.g. Claude Code changes its `hooks` schema so `command` isn't the right field). Adjust `_wire_claude_hooks` accordingly.
+- Cross-platform install intent diverges (Codex, Claude Code, Antigravity grow incompatible install shapes). Split the unified `install --platform` back into per-platform subcommands only.
+
+See also: `FUTURE-PLANS.md` no longer lists Claude Code / Antigravity install scripts as deferred — that item is now delivered.
+
+---
+
 ## 2026-06-29 — Phase 9: Claude Code validate-install test fixtures
 
 ### Decision

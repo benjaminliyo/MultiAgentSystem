@@ -1,5 +1,9 @@
 # Codex Custom Agents
 
+> **Install:** see [`codex-agents/INSTALL.md`](codex-agents/INSTALL.md) for the one-command installer.
+>
+> This file is the deeper reference for how Codex custom agents are used in this system — communication model, skill configuration, model and permission defaults. Read it if you're changing the templates or debugging behavior; skip it if you just want to install.
+
 This layer turns the reusable Markdown roles into Codex custom agents.
 
 Codex custom agents are standalone TOML files. Personal agents live in:
@@ -55,13 +59,6 @@ If the subagent tool metadata does not list these roles, restart Codex or open a
 
 It should pass structured artifacts between them instead of asking you to copy messages by hand.
 
-If the roles are visible but a custom role fails to start with `spawn_agent could not resolve the child model for service tier validation`, the failure is past recognition and before agent creation. In that case:
-
-1. Try spawning a built-in role such as `default` in the same thread.
-2. If the built-in role works, keep the TOML files unchanged unless validation shows a real schema problem.
-3. Restart Codex or open a fresh thread with a supported Codex model selected, then retry `agent_type: "pm"`.
-4. If the error persists, report it as a Codex custom-agent model/service-tier validation issue.
-
 ## Agent Communication Model
 
 Agents should communicate through PM and shared artifacts:
@@ -80,34 +77,11 @@ Use `COMMUNICATION-PROTOCOL.md` for message structure and `TEAM-WORKFLOW.md` for
 
 Shipped canonical templates live at `codex-agents/templates/*.toml`. These templates contain the role instructions and skill *categories* (e.g. "a plan-writing skill," "a context-maintenance skill"), but no concrete `[[skills.config]]` path entries — those depend on which skills each user has installed locally.
 
-Run the install script to populate `[[skills.config]]` entries from your local skill installation and deploy the generated files to `~/.codex/agents/`:
-
-```powershell
-python scripts\multiagent_files.py install-codex --repo-root .
-```
-
-```bash
-python scripts/multiagent_files.py install-codex --repo-root .
-```
-
-The script scans `~/.codex/skills/` and `~/.codex/plugins/` for `SKILL.md` files and appends a `[[skills.config]]` block per skill to each generated `codex-agents/<role>.toml`. It then copies the generated files to `~/.codex/agents/<role>.toml`.
-
-Flags:
-
-- `--codex-home <path>` — override `~/.codex` if your Codex install lives elsewhere.
-- `--skip-deploy` — only write `codex-agents/*.toml` in the repo; do not copy to `~/.codex/agents/`. Useful for previewing the generated output before deploy.
+The installer (`.\scripts\install.ps1 codex` or `./scripts/install.sh codex`) scans `~/.codex/skills/` and `~/.codex/plugins/` for `SKILL.md` files and appends a `[[skills.config]]` block per skill to each generated `codex-agents/<role>.toml` before copying to `~/.codex/agents/<role>.toml`.
 
 The generated `codex-agents/*.toml` files are gitignored so personal paths never enter version control.
 
 For a working reference of one user's real skill setup, see `examples/personal-profiles/`. Do not copy those skill lists blindly — the names refer to specific installations that vary per user.
-
-After running the install script, verify:
-
-```powershell
-python scripts\multiagent_files.py validate-install --repo-root . --platform codex
-```
-
-A clean install reports `complete: True`. Restart Codex or open a new thread so it picks up the new agent files.
 
 If a Developer task needs a domain skill that no template lists (databases, embedded, LaTeX, scientific compute, etc.), the Developer should use a skill-installer or skill-search capability to find and request installation via a `skill_need` message routed through PM.
 
@@ -124,6 +98,8 @@ The root session should also have the `multiagent-workflow` skill installed at:
 ```text
 ~/.codex/skills/multiagent-workflow
 ```
+
+(The installer copies this automatically.)
 
 ## After Editing
 
