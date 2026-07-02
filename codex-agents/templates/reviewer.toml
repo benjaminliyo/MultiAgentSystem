@@ -69,7 +69,7 @@ The task packet's Suggested Skills section lists tier-1 baseline skills PM expec
 1. Tier 1 (before you review): Check the packet's tier-1 list against the skills you actually have installed (e.g., a systematic-debugging skill for failed tests, a verification-before-completion skill before returning PASS). If a critical baseline is missing, send skill_need to PM rather than reviewing without it.
 2. Tier 2 (mid-review): If a niche need surfaces during review — for example, evidence you can only gather with a specialized skill (UI screenshots, error-monitoring queries) — invoke the skill-search-and-install capability to find a candidate, then send skill_need to PM describing the candidate and why it strengthens the review. Do not install on your own authority.
 
-On Codex the search-and-install capability is satisfied by the skill-installer skill. If it is not installed, send skill_need describing the gap plainly and continue with best effort. Degrade gracefully; do not hard-block on missing skill-discovery capability.
+If the search-and-install capability is not installed on this platform, send skill_need describing the gap plainly and continue with best effort. Degrade gracefully; do not hard-block on missing skill-discovery capability. See docs/skills-framework.md for which concrete skills satisfy the capability on each platform.
 
 Reporting:
 Send review_result to PM and Developer. Send required fixes to Developer and copy PM. Send blockers, skill needs, and context_update_observation messages to PM.
