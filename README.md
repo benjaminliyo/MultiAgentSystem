@@ -1,0 +1,268 @@
+# MultiAgentSystem
+
+Reusable PM-led multi-agent workflow for software projects, with adapters for Codex and Claude Code sharing one canonical core (`roles/`, `templates/`, `scripts/`).
+
+This system models a small product team:
+
+- Client/Boss: the human requester.
+- PM Agent: main-thread agent. Clarifies intent, designs the product-level plan, produces an approved task packet, AND owns mechanical routing (spawning workers, catching escalations, run-folder bookkeeping).
+- Developer Agent: owns technical design and implementation within the approved task packet. `developer-strong` is the escalation tier for risky work.
+- Reviewer Agent: checks the implementation against requirements, tests, and project quality rules. `reviewer-strong` is the escalation tier.
+
+The framework is project-agnostic. Each project supplies a local project profile (`.multiagent/project-profile.md`) that tells the agents what "good work" means in that repo.
+
+## Choose Your Platform
+
+| Platform     | Install doc                       | Spawn entry point                                |
+|--------------|-----------------------------------|--------------------------------------------------|
+| Codex        | `CODEX-CUSTOM-AGENTS.md`          | `Run the multiagent workflow` (uses `codex-skill/multiagent-workflow/`) |
+| Claude Code  | `claude-code/INSTALL.md`          | `/multiagent <task>` (uses `claude-code/skill/multiagent-workflow/`)    |
+| Antigravity  | `antigravity/INSTALL.md`          | `/multiagent <task>` (uses `antigravity/skill/multiagent-workflow/`)    |
+
+All platforms run the same PM-led workflow against the same shared role docs in `roles/` and the same `scripts/multiagent_files.py` for run-folder and message persistence. The platform-specific adapters live in `codex-agents/` + `codex-skill/`, `claude-code/agents/` + `claude-code/skill/` + `claude-code/commands/`, and `antigravity/agents/` + `antigravity/skill/`.
+
+The earlier `multiagent-orchestrator` agent was removed on 2026-06-29 — PM (main thread) absorbed its mechanical responsibilities. See `CHANGELOG.md` for the decision and `FUTURE-PLANS.md` for the autonomous-loop scenario where it will be reintroduced.
+
+## Recommended Layout
+
+```text
+D:\Projects\MultiAgentSystem\
+  README.md
+  CHANGELOG.md                       # append-only decision log
+  FUTURE-PLANS.md                    # forward-looking plans
+  ORCHESTRATION.md
+  TEAM-WORKFLOW.md
+  COMMUNICATION-PROTOCOL.md
+  AGENTS.md                          # maintenance instructions
+  project-profile-template.md
+  roles\                             # shared role docs (both platforms)
+    pm.md
+    developer.md
+    developer-strong.md
+    reviewer.md
+  templates\                         # shared task/report/message templates
+    task-packet.md
+    technical-plan.md
+    implementation-report.md
+    review-report.md
+    messages\*.md
+  scripts\
+    multiagent_files.py              # run-folder + message helper (both platforms)
+  codex-agents\                      # Codex custom-agent TOMLs
+    pm.toml
+    developer.toml
+    developer-strong.toml
+    reviewer.toml
+    reviewer-strong.toml
+    multiagent-orchestrator.toml     # DEPRECATED — preserved for old installs
+  codex-skill\
+    multiagent-workflow\SKILL.md     # Codex recognition skill
+  claude-code\                       # Claude Code adapter
+    INSTALL.md
+    IMPLEMENTATION-PLAN.md
+    agents\
+      pm.md
+      developer.md
+      developer-strong.md
+      reviewer.md
+      reviewer-strong.md
+    skill\
+      multiagent-workflow\SKILL.md
+    commands\
+      multiagent.md
+  antigravity\                       # Antigravity adapter
+    INSTALL.md
+    agents\
+      pm.md
+      developer.md
+      developer-strong.md
+      reviewer.md
+      reviewer-strong.md
+    skill\
+      multiagent-workflow\SKILL.md
+  examples\
+    contextupdate-project-profile.md
+```
+
+Inside each project, copy or adapt the profile:
+
+```text
+SomeProject\
+  .multiagent\
+    project-profile.md
+```
+
+Each workflow run should also create a durable run folder:
+
+```text
+SomeProject\
+  .multiagent\
+    team-registry.json
+    runs\
+      YYYY-MM-DD-short-task-name\
+        run-summary.md
+        messages.jsonl
+        messages\
+        transcripts\
+```
+
+The `messages` folder is the required human-readable inter-agent communication history. Each agent self-logs its own messages (PM, Developer, Developer-Strong, Reviewer, Reviewer-Strong) so progress remains visible after task-scoped agents are closed. `messages.jsonl` is the machine-readable index. The `transcripts` folder is optional best-effort storage for raw inter-agent replies or transcript excerpts when the runtime exposes them. Unrelated private user-agent conversation is not part of the required archive.
+
+## Core Flow
+
+```text
+Client/Boss -> PM lead -> Developer -> Reviewer -> Developer loop -> PM closeout -> Done
+```
+
+The PM talks with the client until the product-level task is clear. The PM assigns work to Developer and Reviewer, tracks progress, and owns the final client-facing closeout. The Developer decides how to implement it. The Reviewer verifies whether the result satisfies the task packet and the project profile.
+
+## Role Boundaries
+
+PM owns:
+
+- product goals
+- user-visible behavior
+- constraints
+- non-goals
+- acceptance criteria
+- client-facing tradeoffs
+
+Developer owns:
+
+- package and library choices
+- file/module changes
+- technical design
+- tests
+- implementation details
+- engineering tradeoffs inside approved boundaries
+
+Reviewer owns:
+
+- requirement coverage
+- test adequacy
+- code quality
+- scope control
+- pass/fail decision
+
+## Standard Docs
+
+- `CHANGELOG.md`: append-only decision log. Read this first if you want to understand why the system is shaped the way it is.
+- `FUTURE-PLANS.md`: forward-looking plans (init skill, autonomous-loop orchestrator).
+- `TEAM-WORKFLOW.md`: business-style team model, role authority, lifecycle, permission model, and session strategy.
+- `COMMUNICATION-PROTOCOL.md`: standardized message types and message envelope.
+- `ORCHESTRATION.md`: routing rules and state machine.
+- `AGENTS.md`: maintenance instructions for this repo (canonical vs installed paths, verification, etc).
+- `CODEX-CUSTOM-AGENTS.md`: Codex-specific custom-agent install notes.
+- `claude-code/INSTALL.md`: Claude Code-specific install steps.
+
+## First Manual Run (Codex)
+
+1. Install Codex agents and the `multiagent-workflow` skill (see `CODEX-CUSTOM-AGENTS.md`).
+2. Create `.multiagent/project-profile.md` in the project repo.
+3. Restart Codex or open a new thread after installing/updating.
+4. Start the multiagent workflow from a Codex thread:
+   ```text
+   Run the multiagent workflow for this project. Start with the PM agent.
+   ```
+   If the short prompt doesn't work, paste `launch/start-multiagent.md`.
+5. Approve Scoped Autonomy for the run when PM asks.
+6. PM creates the run folder and clarifies the client request, then drafts the task packet.
+7. Review and approve the task packet.
+8. PM spawns Developer (tier per `Suggested Developer Tier`), then Reviewer.
+9. Failed reviews go back to Developer until Reviewer returns PASS.
+10. PM closes out.
+
+## First Manual Run (Claude Code)
+
+1. Install Claude Code agents, skill, and slash command (see `claude-code/INSTALL.md`).
+2. Restart the Claude Code session.
+3. In any project repo:
+   ```text
+   /multiagent fix the broken login redirect
+   ```
+   (Empty args make PM ask what to work on instead of assuming a task.)
+4. The main session adopts PM's role; PM asks for Scoped Autonomy, creates the run folder, clarifies, drafts the task packet, and presents it via `EnterPlanMode`.
+5. `ExitPlanMode` is your approval signal.
+6. PM spawns Developer and Reviewer as subagents (with `isolation: "worktree"` for risky changes, `run_in_background: true` for slow work).
+7. Failed reviews loop back; on PASS, PM closes out.
+
+## First Manual Run (Antigravity)
+
+1. Install Antigravity agents and skill (see `antigravity/INSTALL.md`).
+2. Start a new Antigravity/agy session.
+3. In any project repo:
+   ```text
+   /multiagent fix the broken login redirect
+   ```
+   or trigger via `"run the multiagent workflow for this project"`.
+4. The main session adopts PM's role; PM asks for Scoped Autonomy, creates the run folder, clarifies the request, drafts the task packet, and presents it for approval.
+5. PM spawns Developer and Reviewer as subagents (using `Workspace: "share"` or `Workspace: "branch"` for isolated git worktrees when necessary).
+6. PM uses dynamic subagent registration (`define_subagent`) to automatically register subagents in the session at startup, making the setup self-healing and zero-restart.
+7. Failed reviews loop back; on PASS, PM closes out.
+
+## Cross-Platform Parity
+
+Not every platform exposes the same primitives. This table records which capabilities the multi-agent workflow relies on and where each platform stands today. "Yes" means fully supported and wired into this repo's adapters; "Partial" means available with caveats; "No" means not available and workflow must degrade.
+
+| Feature                                | Codex                                        | Claude Code                                  | Antigravity                                    |
+|----------------------------------------|----------------------------------------------|----------------------------------------------|------------------------------------------------|
+| Subagent spawning                      | Yes (`spawn_agent` with custom-agent TOMLs)  | Yes (`Agent(subagent_type: ...)`)            | Yes (`invoke_subagent` with `TypeName`)        |
+| Dynamic subagent registration          | No (custom-agent TOMLs are install-time)     | No (agents defined in `~/.claude/agents/`)   | Yes (`define_subagent` at runtime)             |
+| Skill discovery (auto-load from skills dir) | Yes (`~/.codex/skills/`)                 | Yes (`~/.claude/skills/`)                    | Partial (community skills only; no default skill dir wired) |
+| Skill-search-and-install capability (default) | Yes (`skill-installer` ships)         | No (install a community skill to satisfy)    | No (install a community skill to satisfy)      |
+| Slash commands                         | No (invoked by trigger phrase via skill)     | Yes (`/multiagent ...`)                      | Yes (`/multiagent ...`)                        |
+| Session hooks (SessionStart / Stop)    | Partial (skill-level triggers)               | Yes (settings.json `hooks`)                  | No (no equivalent hook surface today)          |
+| Worktree / workspace isolation         | Partial (via `using-git-worktrees` skill)    | Yes (`Agent(..., isolation: "worktree")`)    | Yes (`Workspace: "share"` / `"branch"`)        |
+| Background / parallel subagent spawn   | Yes (parallel calls; native background)      | Yes (`run_in_background: true`; parallel `Agent` calls) | Yes (multiple entries in `Subagents` array) |
+| Install script                         | Yes (`python scripts/multiagent_files.py install-codex`) | No (manual copy per `claude-code/INSTALL.md`; deferred) | No (manual copy per `antigravity/INSTALL.md`; deferred) |
+| Plan-mode approval gate                | Partial (recognition skill guides flow)      | Yes (`EnterPlanMode` / `ExitPlanMode`)       | Yes (`permissionMode: plan` in agent frontmatter) |
+| MCP tools                              | Yes                                          | Yes                                          | Yes (`enable_mcp_tools`)                       |
+| Install validator                      | Yes (`validate-install --platform codex`)    | Yes (`validate-install --platform claude-code`) | Yes (`validate-install --platform antigravity`) |
+
+Deferred: install scripts for Claude Code and Antigravity are in `FUTURE-PLANS.md`. When a platform column changes, update this table and note the driver in `CHANGELOG.md`.
+
+## Recognition Troubleshooting
+
+### Codex
+
+Custom agents define spawned roles, but they do not by themselves teach the root session what "run the multiagent workflow" means. The global `multiagent-workflow` skill bridges that trigger phrase to the custom `pm` agent.
+
+If Codex searches the repo for "multiagent" or spawns a generic agent instead of `pm`, check:
+
+- `~/.codex/skills/multiagent-workflow/SKILL.md` exists.
+- `~/.codex/agents/pm.toml` exists.
+- The current subagent tool metadata lists `pm`, `developer`, `developer-strong`, `reviewer`, and `reviewer-strong`. (The deprecated `multiagent-orchestrator` may still appear in old installs; harmless.)
+- Codex was restarted or a new thread was opened after installation.
+
+If those roles are listed but spawning `pm` fails with `spawn_agent could not resolve the child model for service tier validation`, the workflow is recognized but custom-agent startup is failing in Codex's model/service-tier validation. Confirm a built-in agent such as `default` can spawn in the same thread. Restart Codex or open a fresh thread with a supported Codex model selected, then retry `agent_type: "pm"`. If the same error persists while built-in agents still spawn, treat it as a Codex custom-agent runtime issue rather than a missing MultiAgentSystem install.
+
+### Claude Code
+
+If `/multiagent` is not recognized, or `subagent_type: "pm"` is missing, the install isn't complete or the session needs restart. See `claude-code/INSTALL.md` → Troubleshooting.
+
+## Done Standard
+
+A task is done only when:
+
+- the task packet has been approved by the client,
+- implementation satisfies every acceptance criterion,
+- appropriate verification has run,
+- the reviewer returns `PASS`,
+- unresolved risks are documented.
+
+Before closing, agents should consider whether a context-maintenance skill (if installed) applies and, if so, invoke it.
+
+## Automation Helper
+
+Use `scripts/multiagent_files.py` for repeatable workflow artifacts:
+
+```powershell
+python scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
+python scripts\multiagent_files.py append-message --run <run-dir> --from-role pm --to-role developer --type task_assignment --title "<title>" --body "<body>"
+python scripts\multiagent_files.py status --run <run-dir>
+python scripts\multiagent_files.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform codex
+python scripts\multiagent_files.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform claude-code
+python scripts\multiagent_files.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform antigravity
+```
+
+The helper owns file creation, message IDs, JSONL indexing, role registry defaults, and install validation. Agents still own product, implementation, and review judgment. Workers self-log their own inter-agent messages via `append-message`; PM additionally logs task assignments, escalation events, and closeouts.

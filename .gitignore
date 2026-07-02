@@ -1,0 +1,41 @@
+# Experimentation, probes, and scratch work — not shipped
+.tmp/
+
+# Per-run inter-agent artifacts (messages, transcripts, run-summaries).
+# The .multiagent/project-profile.md IS tracked; only per-run state is ignored.
+.multiagent/runs/
+
+# Codex agent config with local skill paths. Templates under codex-agents/templates/
+# ARE tracked; the install script generates codex-agents/*.toml with local paths.
+# The `/` prefix keeps this pattern matching only top-level TOMLs, not subdirectories.
+/codex-agents/*.toml
+
+# Personal notes and local overrides (never shipped).
+# Use these directories for anything user-specific that shouldn't be public.
+personal/
+.local/
+docs/private/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db

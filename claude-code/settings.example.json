@@ -1,0 +1,28 @@
+{
+  "_comment_purpose": "Example ~/.claude/settings.json wiring for the MultiAgentSystem hooks. Both hooks are opt-in. Copy or merge into your real settings.json; do not point Claude Code at this example file directly. Remove either hook entry you do not want.",
+  "_comment_paths": "Adjust the absolute paths to your MultiAgentSystem checkout. Default example assumes D:/Projects/MultiAgentSystem (Windows).",
+  "_comment_bash_alternative": "For WSL / Git Bash / macOS / Linux, replace each `command` value with: bash /path/to/MultiAgentSystem/claude-code/hooks/<hook-name>.sh",
+  "_comment_schema_note": "Hook schema follows Claude Code's settings.json format. If your Claude Code version uses a different shape (e.g. flat `command` key instead of nested `hooks` array), adapt accordingly. Verify with `/config` or Claude Code's settings docs after copying.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:/Projects/MultiAgentSystem/claude-code/hooks/session-start-load-profile.ps1\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:/Projects/MultiAgentSystem/claude-code/hooks/stop-warn-unclosed-run.ps1\""
+          }
+        ]
+      }
+    ]
+  }
+}
