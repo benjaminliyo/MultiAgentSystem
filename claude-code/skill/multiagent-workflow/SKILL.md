@@ -53,6 +53,12 @@ Default to `Agent(subagent_type: "reviewer", ...)`. Use `Agent(subagent_type: "r
 
 If the default reviewer returns `ESCALATE_TO_STRONG_REVIEWER`, respawn on `reviewer-strong` with the escalation reason attached.
 
+## Spawning Researcher (Optional)
+
+`Agent(subagent_type: "researcher", ...)` is an optional read-only exploration agent — no Edit/Write tools, no strong tier, no new workflow state. Spawn it when understanding the codebase is its own chunk of work: during `pm_discovery` on a large or unfamiliar project before drafting the task packet, or when Developer/Reviewer sends an `exploration_request`.
+
+Pass a scoped assignment (exploration scope, concrete focus questions, depth hint) and the run directory — it self-logs an `exploration_report`. Because it is read-only, it can run in parallel with any other worker and never needs a worktree. It cannot write to the project: fold durable findings into `.multiagent/project-profile.md` yourself and attach the report when spawning workers who need it.
+
 ## Parallel Spawning
 
 When the next Developer slice is independent of the current Reviewer pass (non-overlapping files, no shared state), spawn both in the same assistant turn with two `Agent` calls — they run in parallel. The same applies to independent Developer slices that touch non-overlapping files (use separate worktrees).
@@ -61,7 +67,7 @@ Do not parallelize when the next slice depends on the current Reviewer's verdict
 
 ## Worker Self-Logging
 
-Workers (Developer, Developer-Strong, Reviewer, Reviewer-Strong) self-log their own inter-agent messages via `python scripts/multiagent_files.py append-message --from-role <role> ...`. You do not log on their behalf. Always pass the run directory when spawning them so they can write to it.
+Workers (Developer, Developer-Strong, Reviewer, Reviewer-Strong, Researcher) self-log their own inter-agent messages via `python scripts/multiagent_files.py append-message --from-role <role> ...`. You do not log on their behalf. Always pass the run directory when spawning them so they can write to it.
 
 If a worker reports a save failure, record it in `run-summary.md` and decide whether to retry the spawn or surface the issue to the client.
 
@@ -101,7 +107,7 @@ Persistent client preferences — quality bar, communication style, tech-stack d
 
 ## Troubleshooting
 
-**Subagent types missing.** If `pm`, `developer`, `developer-strong`, `reviewer`, or `reviewer-strong` are not available as `subagent_type` options:
+**Subagent types missing.** If `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, or `researcher` are not available as `subagent_type` options:
 
 1. The user needs to install the agent files. From the canonical repo:
    ```bash
@@ -111,7 +117,7 @@ Persistent client preferences — quality bar, communication style, tech-stack d
 2. Restart the Claude Code session (or open a new one) after copying — agent files are loaded at session start.
 3. Confirm `~/.claude/agents/pm.md` exists and starts with valid YAML frontmatter.
 
-**`multiagent_files.py` rejects a role.** If `append-message` returns "Unknown from-role" or "Unknown to-role", check `VALID_MESSAGE_ROLES` in `scripts/multiagent_files.py`. The active roles are: `client`, `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`. `orchestrator` is retained for forward-compat with autonomous loops (see `FUTURE-PLANS.md`).
+**`multiagent_files.py` rejects a role.** If `append-message` returns "Unknown from-role" or "Unknown to-role", check `VALID_MESSAGE_ROLES` in `scripts/multiagent_files.py`. The active roles are: `client`, `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, `researcher`. `orchestrator` is retained for forward-compat with autonomous loops (see `FUTURE-PLANS.md`).
 
 **`multiagent-orchestrator` referenced somewhere.** It was deprecated 2026-06-29. A reference in any current doc or agent file is a bug — fix or flag it. Historical design records live in `docs/private/` (gitignored).
 

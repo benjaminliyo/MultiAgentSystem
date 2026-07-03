@@ -8,7 +8,7 @@ Invoke the `multiagent-workflow` skill. That skill is the canonical operating do
 
 - The main Claude Code session **adopts PM's role** by reading `~/.claude/agents/pm.md` (or the canonical copy at `claude-code/agents/pm.md`). Do not spawn a separate `pm` subagent for this interactive run.
 - PM owns product judgment AND mechanical routing (run-folder creation, escalation respawning, parallel-spawn, state tracking). The earlier `multiagent-orchestrator` role was removed on 2026-06-29 — see `CHANGELOG.md`.
-- Developer and Reviewer are spawned as subagents via the `Agent` tool with `subagent_type: "developer" | "developer-strong" | "reviewer" | "reviewer-strong"`.
+- Developer and Reviewer are spawned as subagents via the `Agent` tool with `subagent_type: "developer" | "developer-strong" | "reviewer" | "reviewer-strong"`. The optional read-only `researcher` may be spawned for codebase exploration (large/unfamiliar projects, or a worker's `exploration_request`).
 - Workers self-log their own inter-agent messages via `scripts/multiagent_files.py append-message`.
 
 ## Special Arguments: off / resume

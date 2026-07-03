@@ -14,6 +14,7 @@ Custom agent files (installed):
 ~/.codex/agents/developer-strong.toml
 ~/.codex/agents/reviewer.toml
 ~/.codex/agents/reviewer-strong.toml
+~/.codex/agents/researcher.toml
 ```
 
 Note: `multiagent-orchestrator.toml` was deprecated 2026-06-29 (see `CHANGELOG.md`). It may still be present in old installs; that is harmless.

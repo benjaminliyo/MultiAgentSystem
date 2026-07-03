@@ -28,14 +28,14 @@ That's it. Restart Claude Code and `/multiagent <task>` works in any project.
 
 | Source (canonical repo)                        | Destination                                      |
 |------------------------------------------------|--------------------------------------------------|
-| `claude-code/agents/*.md` (5 files)            | `~/.claude/agents/`                              |
+| `claude-code/agents/*.md` (6 files)            | `~/.claude/agents/`                              |
 | `claude-code/skill/multiagent-workflow/`       | `~/.claude/skills/multiagent-workflow/`          |
 | `claude-code/commands/multiagent.md`           | `~/.claude/commands/multiagent.md`               |
 | `claude-code/hooks/*` (via settings)           | wired into `~/.claude/settings.json`             |
 
 The installer also consults `skills/role-skill-map.toml`: skills installed under `~/.claude/skills/` that match a role's candidates are written into that installed agent's `skills:` frontmatter (preloaded at spawn). And if a gitignored `local/overlays/roles/<role>.md` exists, its content is appended to the installed agent body — personal additions without touching canonical files.
 
-The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`. PM is the main-thread agent and absorbs mechanical routing. See `CHANGELOG.md` (2026-06-29) for why there's no `multiagent-orchestrator`.
+The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and the optional read-only `researcher`. PM is the main-thread agent and absorbs mechanical routing. See `CHANGELOG.md` (2026-06-29) for why there's no `multiagent-orchestrator`.
 
 The hook wiring (five events, all silent outside active multiagent runs):
 
@@ -108,13 +108,14 @@ Remove-Item $HOME\.claude\agents\pm.md, `
             $HOME\.claude\agents\developer.md, `
             $HOME\.claude\agents\developer-strong.md, `
             $HOME\.claude\agents\reviewer.md, `
-            $HOME\.claude\agents\reviewer-strong.md
+            $HOME\.claude\agents\reviewer-strong.md, `
+            $HOME\.claude\agents\researcher.md
 Remove-Item -Recurse $HOME\.claude\skills\multiagent-workflow
 Remove-Item $HOME\.claude\commands\multiagent.md
 ```
 
 ```bash
-rm ~/.claude/agents/{pm,developer,developer-strong,reviewer,reviewer-strong}.md
+rm ~/.claude/agents/{pm,developer,developer-strong,reviewer,reviewer-strong,researcher}.md
 rm -r ~/.claude/skills/multiagent-workflow
 rm ~/.claude/commands/multiagent.md
 ```

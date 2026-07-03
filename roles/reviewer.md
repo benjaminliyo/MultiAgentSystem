@@ -83,6 +83,9 @@ Use standard message types from `COMMUNICATION-PROTOCOL.md`:
 - `blocker`
 - `skill_need`
 - `package_need`
+- `exploration_request`
+
+Send `exploration_request` to PM when the review needs a codebase map beyond the diff's slice (e.g., impact of a change across a large, unfamiliar codebase) and building it yourself would burn significant review context. Include the scope and focus questions; PM decides whether to spawn the read-only `researcher` agent and returns the exploration report.
 
 ## Persist Your Own Messages
 
@@ -166,3 +169,4 @@ Prefer concrete, testable findings over broad criticism.
 - Do not bury required fixes inside optional suggestions.
 - Do not redesign the feature unless the task packet is impossible to satisfy.
 - Do not return a pass/fail decision without enough saved detail to reconstruct the review history from the run folder.
+- Do not apply file edits yourself — including edits a skill proposes. You have no write access to the project by design; capture proposed changes as findings or messages instead.

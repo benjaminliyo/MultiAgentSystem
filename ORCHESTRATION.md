@@ -2,7 +2,7 @@
 
 Use this guide to run the PM-led three-agent system.
 
-The process model is business-like: the human is the Client/CEO, PM is the team lead and main-thread agent, and Developer and Reviewer report to PM. PM owns both product judgment AND mechanical routing — see `CHANGELOG.md` (2026-06-29) for why the earlier dedicated `multiagent-orchestrator` role was removed and `FUTURE-PLANS.md` for the autonomous-loop scenario where it will be reintroduced.
+The process model is business-like: the human is the Client/CEO, PM is the team lead and main-thread agent, and Developer, Reviewer, and the optional read-only Researcher report to PM. PM owns both product judgment AND mechanical routing — see `CHANGELOG.md` (2026-06-29) for why the earlier dedicated `multiagent-orchestrator` role was removed and `FUTURE-PLANS.md` for the autonomous-loop scenario where it will be reintroduced.
 
 ## States
 
@@ -42,10 +42,10 @@ Escalate separately for writes outside the workspace, broad machine access, secr
 
 ### permission_preflight -> pm_discovery
 
-PM (as the main-thread agent) creates `.multiagent/runs/YYYY-MM-DD-short-task-name/` with `messages/`, `messages.jsonl`, optional `transcripts/`, and `run-summary.md` before spawning Developer for the first time. Prefer the deterministic helper:
+PM (as the main-thread agent) creates `.multiagent/runs/YYYY-MM-DD-short-task-name/` with `messages/`, `messages.jsonl`, optional `transcripts/`, and `run-summary.md` before spawning Developer for the first time. Prefer the deterministic helper (`<MULTIAGENT_REPO>` is your local checkout of this repo):
 
 ```powershell
-python D:\Projects\MultiAgentSystem\scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
+python <MULTIAGENT_REPO>\scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
 ```
 
 The client request summary becomes the first saved message.
@@ -55,6 +55,8 @@ Record the preflight decision and any denied or deferred permissions in `run-sum
 PM owns this phase. PM is normally the main-thread agent; if the runtime forces PM to be a child subagent that cannot spawn other agents, the main session should route messages on PM's behalf (this is the autonomous-loop scenario tracked in `FUTURE-PLANS.md`).
 
 ### pm_discovery -> awaiting_client_approval
+
+During `pm_discovery` on a large or unfamiliar project, PM may spawn the optional read-only `researcher` agent with a scoped exploration assignment (scope, focus questions, run directory). The Researcher returns an `exploration_report`; PM folds durable findings into `.multiagent/project-profile.md` and the task packet. Exploration introduces no new workflow state — it runs inside the current state, and because the Researcher is read-only it may also run mid-run in parallel with Developer or Reviewer work when they send an `exploration_request`.
 
 Move here when the PM believes product-level ambiguity is resolved.
 
@@ -207,6 +209,8 @@ Required handoff messages:
 - Developer to PM and Reviewer: `ready_for_review`
 - Reviewer to PM and Developer: `review_result`
 - Reviewer to Developer, copied to PM: `fix_request`
+- Developer or Reviewer to PM: `exploration_request`
+- Researcher to PM: `exploration_report`
 - Any agent to PM: `blocker`, `skill_need`, `package_need`
 
 Use the efficient `reviewer` agent for routine reviews. Use `reviewer-strong` when a review has large-diff, security, data-loss, concurrency, migration, dependency, authentication/authorization, failed-loop, or low-confidence escalation risk.
@@ -231,9 +235,10 @@ Recommended default:
 - PM (main thread): read the full project, write planning and process docs, create run-folder artifacts, route messages, spawn agents, and apply approved agent configuration updates.
 - Developer: read the full project, write implementation, tests, and technical docs inside the workspace.
 - Reviewer: read the full project, write review reports and test artifacts; code edits only when explicitly assigned.
+- Researcher (optional): read the full project; write nothing except its own run-folder messages via the logging helper.
 
 Avoid unrestricted access as the normal baseline. Prefer one Scoped Autonomy approval for workspace/project read-write at run start, then escalate only when a task requires broader filesystem, network, external-app, deployment, secret, or global-configuration permissions.
 
 ## Model And Usage Guidance
 
-Use a balanced automatic model policy by default: `gpt-5.5`/`xhigh` PM, `gpt-5.5`/`high` Developer, `gpt-5.5`/`xhigh` `developer-strong`, `gpt-5.4-mini`/`medium` Reviewer with escalation triggers, and `gpt-5.5`/`high` `reviewer-strong`. PM runs on the strongest model because it now combines product judgment and mechanical routing. Escalate Developer and Reviewer model strength automatically when risk, ambiguity, or failed loops justify the usage.
+Use a balanced automatic model policy by default: `gpt-5.5`/`xhigh` PM, `gpt-5.5`/`high` Developer, `gpt-5.5`/`xhigh` `developer-strong`, `gpt-5.4-mini`/`medium` Reviewer with escalation triggers, `gpt-5.5`/`high` `reviewer-strong`, and `gpt-5.4-mini`/`medium` for the optional `researcher` (breadth-and-summarize work; no strong tier). PM runs on the strongest model because it now combines product judgment and mechanical routing. Escalate Developer and Reviewer model strength automatically when risk, ambiguity, or failed loops justify the usage.

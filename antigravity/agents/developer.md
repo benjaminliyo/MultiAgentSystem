@@ -132,6 +132,9 @@ Use the standard message types from `COMMUNICATION-PROTOCOL.md`:
 - `blocker`
 - `skill_need`
 - `package_need`
+- `exploration_request`
+
+Send `exploration_request` to PM when you need a codebase map beyond your task's slice and building it yourself would burn significant context. Include the scope and focus questions; PM decides whether to spawn the read-only `researcher` agent and returns the exploration report.
 
 **Checkpoint at milestones, not just at handoff.** Log a `progress_update` when your technical plan settles, when each major slice lands, and before long verification runs. If your session dies mid-task (usage limit, crash), these checkpoints are the only trail a resuming PM has — the ready-for-review message alone is not enough.
 

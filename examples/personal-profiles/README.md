@@ -1,23 +1,32 @@
-# Personal Skill Profiles (Reference)
+# Personal Skill Setup (Reference Examples)
 
-The files in this directory are one user's real skill setup for the PM/Developer/Reviewer roles. They are shipped as **reference examples** — not defaults — so you can see how a working configuration looks in practice.
+The files in this directory are **genericized examples** of how to layer a
+personal skill setup on top of the shipped defaults. They are illustrations,
+not defaults, and none of the skill names in them are guaranteed to exist on
+your machine.
 
-If you want to use them as your own:
+Your live personal configuration does **not** belong here (this directory is
+tracked). It belongs in the gitignored `local/` directory, which the
+installer merges into the installed copies:
 
-```bash
-cp examples/personal-profiles/pm-skill-profile.md skills/pm-skill-profile.md
-cp examples/personal-profiles/developer-skill-profile.md skills/developer-skill-profile.md
-cp examples/personal-profiles/reviewer-skill-profile.md skills/reviewer-skill-profile.md
-```
-
-Then edit to match the skills you actually have installed on your platform.
-
-**Do not assume the referenced skills exist on your machine.** Names like `superpowers:brainstorming`, `notion-knowledge-capture`, `figma-generate-design`, `sentry`, `vercel-deploy`, etc. are specific installations that vary per user. The role instruction files (`roles/pm.md`, `roles/developer.md`, `roles/reviewer.md`) already describe skills by *category* (e.g. "a brainstorming skill," "a context-maintenance skill") — that guidance is enough on its own.
+| What | Where it lives | What the installer does with it |
+|------|----------------|--------------------------------|
+| Personal per-role skill additions | `local/role-skill-map.toml` | Merged additively over `skills/role-skill-map.toml` (Codex allowlist entries, Claude Code `skills:` frontmatter) |
+| Personal per-role instruction text | `local/overlays/roles/<role>.md` | Appended to the installed agent bodies (inserted into `developer_instructions` for Codex) |
 
 ## What's here
 
-- `pm-skill-profile.md` — PM role's personal skill list
-- `developer-skill-profile.md` — Developer role's personal skill list
-- `reviewer-skill-profile.md` — Reviewer role's personal skill list
-- `orchestrator-skill-profile.md` — Historical orchestrator profile (role deprecated 2026-06-29; kept as reference for the deferred autonomous-loop scenario in `FUTURE-PLANS.md`)
-- `skill-catalog.md` — Deeper catalog notes including which skills were installed in a real pass and which were skipped
+- `example-local-role-skill-map.md` — a worked example of a personal
+  `local/role-skill-map.toml`, with notes on choosing what belongs in the
+  tier-1 baseline versus what should stay tier-0/tier-2.
+- `example-role-overlay.md` — a worked example of a personal role overlay
+  (`local/overlays/roles/<role>.md`).
+
+## Guidance
+
+Keep the tier-1 baseline lean: only skills the role should draw on for
+*every* task (process skills like TDD, debugging, verification, planning —
+plus universal verification tools). Domain skills (design tools, ticket
+systems, framework-specific or deploy skills) should enter per-task via the
+task packet's Tier 0 section, or mid-work via tier-2 discovery. See
+`docs/skills-framework.md` for the tier model.

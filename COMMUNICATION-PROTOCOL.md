@@ -1,6 +1,6 @@
 # Communication Protocol
 
-This document standardizes messages between the PM, Developer (and Developer-Strong), Reviewer (and Reviewer-Strong), and Client.
+This document standardizes messages between the PM, Developer (and Developer-Strong), Reviewer (and Reviewer-Strong), the optional Researcher, and Client.
 
 The `orchestrator` role still appears as a valid sender/recipient in the envelope below for forward compatibility with the autonomous-loop scenario described in `FUTURE-PLANS.md`. In the current interactive workflow PM (as the main-thread agent) absorbs the orchestrator's mechanical responsibilities — see `CHANGELOG.md` (2026-06-29).
 
@@ -11,9 +11,9 @@ Every tracked message should use this structure:
 ```yaml
 message_id: MSG-YYYYMMDD-NNN
 task_id: TASK-YYYYMMDD-short-name
-from: pm | developer | developer-strong | reviewer | reviewer-strong | orchestrator | client
-to: pm | developer | developer-strong | reviewer | reviewer-strong | orchestrator | client
-type: task_assignment | progress_update | ready_for_review | review_result | fix_request | blocker | decision_record | skill_need | package_need | closeout | escalation_request | subagent_start | subagent_stop
+from: pm | developer | developer-strong | reviewer | reviewer-strong | researcher | orchestrator | client
+to: pm | developer | developer-strong | reviewer | reviewer-strong | researcher | orchestrator | client
+type: task_assignment | progress_update | ready_for_review | review_result | fix_request | blocker | decision_record | skill_need | package_need | exploration_request | exploration_report | closeout | escalation_request | subagent_start | subagent_stop
 status: draft | sent | acknowledged | blocked | done
 priority: low | normal | high | urgent
 created_at: YYYY-MM-DD HH:MM TZ
@@ -90,6 +90,18 @@ From Developer (either tier) to PM.
 
 Purpose: request installation of a missing package into the project's resolved environment. Sent only after the environment-resolution check confirms the package is truly missing (not just in a non-activated venv/conda env). Body must name the package, the resolved target environment, why it is needed, and the fallback cost of working without it. Never install silently and never fall back silently — this message is the required alternative to both.
 
+### Exploration Request
+
+From Developer (either tier) or Reviewer (either tier) to PM.
+
+Purpose: ask PM to spawn the optional read-only `researcher` agent for a codebase map the sender would otherwise burn significant context building. Body must name the exploration scope, concrete focus questions, and why the sender cannot economically answer them within its own task. PM decides: spawn Researcher, answer from the project profile, or decline with a reason.
+
+### Exploration Report
+
+From Researcher to PM.
+
+Purpose: deliver structured exploration findings (architecture overview, key components, conventions, dependencies, answers to focus questions, risks and unknowns, file:line pointers). The Researcher has no write access to the project — PM owns folding durable findings into `.multiagent/project-profile.md` and routing the report to whoever requested the exploration.
+
 ### Subagent Start / Stop (auto-logged)
 
 From PM to worker (`subagent_start`) and worker to PM (`subagent_stop`).
@@ -125,6 +137,7 @@ PM respawns the task on the strong-tier agent with the original task packet plus
 - Skill installation requests go to PM.
 - Package installation requests go to PM; PM approves within the client's pre-approved environment envelope or forwards to the Client.
 - Tier escalation requests go to PM. PM owns respawning the task on the stronger-tier agent.
+- Exploration requests go to PM. PM decides whether to spawn the read-only Researcher and routes the exploration report back to the requester; durable findings land in the project profile via PM.
 
 ## Storage
 
@@ -138,10 +151,10 @@ For every multi-agent workflow run, PM (as the main-thread agent) must create a 
   transcripts/
 ```
 
-Prefer creating the run folder with:
+Prefer creating the run folder with (`<MULTIAGENT_REPO>` is your local checkout of this repo):
 
 ```powershell
-python D:\Projects\MultiAgentSystem\scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
+python <MULTIAGENT_REPO>\scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
 ```
 
 The `messages` folder is mandatory. Store every routed inter-agent message there before routing it onward or closing the sending agent. `messages.jsonl` is the machine-readable index that points to those Markdown artifacts. Use filenames like:
@@ -157,7 +170,7 @@ The `messages` folder is mandatory. Store every routed inter-agent message there
 Prefer appending routed messages with:
 
 ```powershell
-python D:\Projects\MultiAgentSystem\scripts\multiagent_files.py append-message --run <run-dir> --from-role pm --to-role developer --type task_assignment --title "<title>" --body "<body>"
+python <MULTIAGENT_REPO>\scripts\multiagent_files.py append-message --run <run-dir> --from-role pm --to-role developer --type task_assignment --title "<title>" --body "<body>"
 ```
 
 The `transcripts` folder is optional best-effort storage for raw inter-agent replies or transcript excerpts when Codex exposes them. Do not depend on closed subagents remaining readable. Do not archive unrelated private user-agent conversation unless it is explicitly routed as workflow input or a client decision.

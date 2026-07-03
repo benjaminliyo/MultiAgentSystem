@@ -29,7 +29,14 @@ class MultiAgentFilesTests(unittest.TestCase):
             roles = [entry["role"] for entry in registry["roles"]]
             self.assertEqual(
                 roles,
-                ["pm", "developer", "developer-strong", "reviewer", "reviewer-strong"],
+                [
+                    "pm",
+                    "developer",
+                    "developer-strong",
+                    "reviewer",
+                    "reviewer-strong",
+                    "researcher",
+                ],
             )
 
     def test_append_message_writes_markdown_and_jsonl_index(self):
@@ -114,6 +121,69 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertTrue(payload["complete"])
             self.assertEqual(payload["missing"], [])
 
+    def test_codex_validate_install_flags_malformed_installed_agent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            codex_home = Path(tmp) / "codex"
+            repo_agents = repo / "codex-agents"
+            installed_agents = codex_home / "agents"
+            canonical_skill = repo / "codex-skill" / "multiagent-workflow"
+            installed_skill = codex_home / "skills" / "multiagent-workflow"
+            repo_agents.mkdir(parents=True)
+            installed_agents.mkdir(parents=True)
+            canonical_skill.mkdir(parents=True)
+            installed_skill.mkdir(parents=True)
+            (canonical_skill / "SKILL.md").write_text("---\nname: multiagent-workflow\n---\n")
+            (installed_skill / "SKILL.md").write_text("---\nname: multiagent-workflow\n---\n")
+
+            toml = 'name = "{name}"\n'
+            for name in install.CANONICAL_AGENT_FILES["codex"]:
+                content = toml.format(name=name.removesuffix(".toml"))
+                (repo_agents / name).write_text(content, encoding="utf-8")
+                (installed_agents / name).write_text(content, encoding="utf-8")
+            (installed_agents / "researcher.toml").write_text("name = [\n", encoding="utf-8")
+
+            payload = install.validate_install(repo, codex_home, platform="codex")
+
+            self.assertFalse(payload["complete"])
+            self.assertTrue(
+                any("researcher.toml" in entry.lower() and "installed" in entry.lower() for entry in payload["missing"]),
+                payload["missing"],
+            )
+
+    def test_codex_validate_install_flags_installed_agent_drift(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            codex_home = Path(tmp) / "codex"
+            repo_agents = repo / "codex-agents"
+            installed_agents = codex_home / "agents"
+            canonical_skill = repo / "codex-skill" / "multiagent-workflow"
+            installed_skill = codex_home / "skills" / "multiagent-workflow"
+            repo_agents.mkdir(parents=True)
+            installed_agents.mkdir(parents=True)
+            canonical_skill.mkdir(parents=True)
+            installed_skill.mkdir(parents=True)
+            (canonical_skill / "SKILL.md").write_text("---\nname: multiagent-workflow\n---\n")
+            (installed_skill / "SKILL.md").write_text("---\nname: multiagent-workflow\n---\n")
+
+            toml = 'name = "{name}"\nmodel = "gpt-5.4-mini"\n'
+            for name in install.CANONICAL_AGENT_FILES["codex"]:
+                content = toml.format(name=name.removesuffix(".toml"))
+                (repo_agents / name).write_text(content, encoding="utf-8")
+                (installed_agents / name).write_text(content, encoding="utf-8")
+            (installed_agents / "researcher.toml").write_text(
+                'name = "researcher"\nmodel = "stale-model"\n',
+                encoding="utf-8",
+            )
+
+            payload = install.validate_install(repo, codex_home, platform="codex")
+
+            self.assertFalse(payload["complete"])
+            self.assertTrue(
+                any("researcher.toml" in entry and "differs" in entry for entry in payload["missing"]),
+                payload["missing"],
+            )
+
     def test_developer_strong_is_a_valid_message_role(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -134,6 +204,28 @@ class MultiAgentFilesTests(unittest.TestCase):
 
             self.assertEqual(message["from"], "developer-strong")
             self.assertEqual(message["to"], "pm")
+
+    def test_researcher_is_a_valid_message_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload = multiagent_files.prepare_run(root, "Exploration log", "2026-07-03")
+            run_dir = Path(payload["run_dir"])
+
+            message = multiagent_files.append_message(
+                run_dir=run_dir,
+                from_role="researcher",
+                to_role="pm",
+                message_type="exploration_report",
+                title="Codebase map",
+                body="Exploration report for the assigned scope.",
+                status="sent",
+                priority="normal",
+                created_at="2026-07-03 12:00 America/Chicago",
+            )
+
+            self.assertEqual(message["from"], "researcher")
+            self.assertEqual(message["to"], "pm")
+            self.assertEqual(message["type"], "exploration_report")
 
     def test_orchestrator_role_still_accepted_for_forward_compat(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -546,9 +638,16 @@ class MultiAgentFilesTests(unittest.TestCase):
         )
         for filename in install.CANONICAL_AGENT_FILES["codex"]:
             role = filename.removesuffix(".toml")
-            (template_dir / filename).write_text(
-                template_body.format(name=role), encoding="utf-8"
-            )
+            content = template_body.format(name=role)
+            if role == "researcher":
+                content += (
+                    'default_permissions = "researcher"\n\n'
+                    "[permissions.researcher.filesystem]\n"
+                    '":workspace_roots" = { "." = "read", ".multiagent" = "write" }\n\n'
+                    "[permissions.researcher.network]\n"
+                    "enabled = false\n"
+                )
+            (template_dir / filename).write_text(content, encoding="utf-8")
 
         if with_skills:
             skill_dirs = [
@@ -576,8 +675,8 @@ class MultiAgentFilesTests(unittest.TestCase):
 
             self.assertTrue(payload["complete"], payload)
             self.assertEqual(payload["skill_count"], 3)
-            self.assertEqual(len(payload["generated"]), 5)
-            self.assertEqual(len(payload["deployed"]), 5)
+            self.assertEqual(len(payload["generated"]), 6)
+            self.assertEqual(len(payload["deployed"]), 6)
 
             pm_generated = fixture["repo"] / "codex-agents" / "pm.toml"
             pm_deployed = fixture["codex_home"] / "agents" / "pm.toml"
@@ -591,6 +690,17 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertIn("context-update/SKILL.md", text)
             self.assertIn("openai-docs/SKILL.md", text)
             self.assertEqual(pm_deployed.read_text(encoding="utf-8"), text)
+
+    def test_codex_researcher_template_includes_limited_write_permission_profile(self):
+        researcher_text = (REPO_ROOT / "codex-agents" / "templates" / "researcher.toml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('default_permissions = "researcher"', researcher_text)
+        self.assertIn("[permissions.researcher.filesystem]", researcher_text)
+        self.assertIn('":workspace_roots" = { "." = "read", ".multiagent" = "write" }', researcher_text)
+        self.assertIn("[permissions.researcher.network]", researcher_text)
+        self.assertIn("enabled = false", researcher_text)
 
     def test_install_codex_skip_deploy_does_not_copy_to_home(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -663,6 +773,63 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertIn("skill-installer/SKILL.md", dev_text)
             self.assertIn("context-update/SKILL.md", dev_text)
             self.assertNotIn("openai-docs/SKILL.md", dev_text)
+
+    def _write_local_role_skill_map(self, repo: Path, body: str) -> None:
+        local_dir = repo / "local"
+        local_dir.mkdir(parents=True, exist_ok=True)
+        (local_dir / "role-skill-map.toml").write_text(body, encoding="utf-8")
+
+    def test_install_codex_local_map_extends_tracked_map(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._make_install_codex_fixture(tmp)
+            self._write_role_skill_map(
+                fixture["repo"],
+                "[always]\n"
+                'candidates = ["skill-installer"]\n'
+                "[roles.pm]\n"
+                'candidates = ["openai-docs"]\n'
+                "[roles.developer]\n"
+                'candidates = ["openai-docs"]\n',
+            )
+            self._write_local_role_skill_map(
+                fixture["repo"],
+                "[roles.developer]\n"
+                'candidates = ["context-update"]\n',
+            )
+
+            payload = install.install_codex(
+                repo_root=fixture["repo"],
+                codex_home=fixture["codex_home"],
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            pm_text = (fixture["repo"] / "codex-agents" / "pm.toml").read_text(encoding="utf-8")
+            dev_text = (fixture["repo"] / "codex-agents" / "developer.toml").read_text(encoding="utf-8")
+            # Tracked map entries survive; local map adds on top for developer only.
+            self.assertIn("openai-docs/SKILL.md", dev_text)
+            self.assertIn("context-update/SKILL.md", dev_text)
+            self.assertNotIn("context-update/SKILL.md", pm_text)
+
+    def test_load_role_skill_map_broken_local_keeps_tracked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            self._write_role_skill_map(
+                repo,
+                "[roles.pm]\n"
+                'candidates = ["openai-docs"]\n',
+            )
+            self._write_local_role_skill_map(repo, "not [valid toml\n")
+
+            skill_map, warnings = install.load_role_skill_map(repo)
+
+            self.assertIsNotNone(skill_map)
+            self.assertEqual(
+                install.role_skill_candidates(skill_map, "pm"), {"openai-docs"}
+            )
+            self.assertTrue(
+                any("local skill-map overlay skipped" in w for w in warnings), warnings
+            )
 
     def test_install_codex_unmatched_role_falls_back_to_all_skills(self):
         with tempfile.TemporaryDirectory() as tmp:

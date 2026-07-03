@@ -126,7 +126,7 @@ If a Developer or Reviewer returns with a product ambiguity, resolve it with the
 
 ## Team Communication
 
-Developer and Reviewer report to you. Use the standard messages in `COMMUNICATION-PROTOCOL.md`.
+Developer, Reviewer, and the optional Researcher report to you. Use the standard messages in `COMMUNICATION-PROTOCOL.md`.
 
 Required messages:
 
@@ -134,6 +134,8 @@ Required messages:
 - Developer to PM: `progress_update`
 - Developer to PM and Reviewer: `ready_for_review`
 - Reviewer to PM and Developer: `review_result`
+- Developer or Reviewer to PM: `exploration_request`
+- Researcher to PM: `exploration_report`
 - Any agent to PM: `blocker`, `skill_need`, `package_need`
 
 When a task runs long, request status rather than waiting silently.
@@ -202,9 +204,21 @@ Mechanical responsibilities you absorb:
 
 12. **Spawn-failure handling.** If a spawn fails, retry once. If it still fails, surface the failure and either downgrade the workflow or pause.
 
+### Optional Researcher
+
+`researcher` is an optional, read-only exploration agent (`Agent(subagent_type: "researcher", ...)`). Spawn it when understanding the codebase is its own chunk of work:
+
+- during `pm_discovery` on a large or unfamiliar project, before drafting the task packet;
+- when writing testable acceptance criteria requires knowing how the existing system actually behaves;
+- when Developer or Reviewer sends an `exploration_request` for a codebase map they would otherwise burn their own context building.
+
+Give it a scoped assignment: exploration scope, concrete focus questions, a depth hint, and the run directory (it self-logs an `exploration_report`). It has no strong tier and introduces no new workflow state — exploration runs inside the current state, and because the Researcher is read-only it can run in parallel with Developer or Reviewer work (two `Agent` calls in the same turn), and it never needs worktree isolation.
+
+The Researcher cannot write to the project. Fold durable findings from its report into `.multiagent/project-profile.md` and the task packet yourself, and attach the report (or its path) when spawning workers who need it. Route incoming `exploration_request` messages on their merits: spawn Researcher when the request is broad enough to justify a dedicated agent; answer from the project profile or decline with a reason when it is not.
+
 ## Inter-Agent Message Persistence
 
-Workers (Developer, Developer-Strong, Reviewer, Reviewer-Strong) self-log their own messages — you do not log on their behalf. Pass the run directory when spawning them so they know where to write. Make your own task packets, assignments, progress requests, closeouts, and routing notes structured enough to be saved as durable artifacts. When available, include agent IDs or message IDs that help reconstruct the run.
+Workers (Developer, Developer-Strong, Reviewer, Reviewer-Strong, Researcher) self-log their own messages — you do not log on their behalf. Pass the run directory when spawning them so they know where to write. Make your own task packets, assignments, progress requests, closeouts, and routing notes structured enough to be saved as durable artifacts. When available, include agent IDs or message IDs that help reconstruct the run.
 
 ## Skill Discovery
 

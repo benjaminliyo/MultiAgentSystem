@@ -36,7 +36,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-MULTIAGENT_ROLES = {"pm", "developer", "developer-strong", "reviewer", "reviewer-strong"}
+MULTIAGENT_ROLES = {"pm", "developer", "developer-strong", "reviewer", "reviewer-strong", "researcher"}
 
 START_EVENTS = {"SubagentStart", "PreToolUse"}
 STOP_EVENTS = {"SubagentStop", "PostToolUse"}

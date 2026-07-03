@@ -88,6 +88,20 @@ def _validate_install_codex(
             continue
         if not installed.exists():
             missing.append(str(installed))
+        else:
+            if tomllib is not None:
+                try:
+                    parse_toml(installed)
+                except MultiAgentFileError as exc:
+                    missing.append(f"Installed {exc}")
+            try:
+                canonical_text = canonical.read_text(encoding="utf-8")
+                installed_text = installed.read_text(encoding="utf-8")
+            except OSError as exc:
+                missing.append(f"{installed}: cannot read ({exc})")
+            else:
+                if installed_text != canonical_text:
+                    missing.append(f"{installed} differs from {canonical}")
         # Skill assignments in [[skills.config]] are per-machine and populated by
         # the install script from local paths. Role instructions reference skills
         # by category, not concrete name, so this validator no longer requires
@@ -340,23 +354,81 @@ def insert_overlay_codex(toml_text: str, overlay: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _merge_skill_map_section(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    """Union one map section (categories + candidates), preserving order."""
+    merged: dict[str, Any] = dict(base)
+    for key in ("categories", "candidates"):
+        seen = list(base.get(key, []))
+        for item in extra.get(key, []):
+            if item not in seen:
+                seen.append(item)
+        if seen:
+            merged[key] = seen
+    return merged
+
+
+def merge_role_skill_maps(base: dict[str, Any], local: dict[str, Any]) -> dict[str, Any]:
+    """Overlay local/role-skill-map.toml onto the tracked map, additively.
+
+    Local entries never remove tracked candidates — they only extend them.
+    Roles that exist only in the local map are added as-is.
+    """
+    merged = dict(base)
+    if isinstance(local.get("always"), dict):
+        merged["always"] = _merge_skill_map_section(
+            base.get("always", {}) if isinstance(base.get("always"), dict) else {},
+            local["always"],
+        )
+    local_roles = local.get("roles")
+    if isinstance(local_roles, dict):
+        base_roles = base.get("roles") if isinstance(base.get("roles"), dict) else {}
+        merged_roles = dict(base_roles)
+        for role, entry in local_roles.items():
+            if not isinstance(entry, dict):
+                continue
+            base_entry = base_roles.get(role)
+            merged_roles[role] = _merge_skill_map_section(
+                base_entry if isinstance(base_entry, dict) else {}, entry
+            )
+        merged["roles"] = merged_roles
+    return merged
+
+
 def load_role_skill_map(repo_root: Path) -> tuple[dict[str, Any] | None, list[str]]:
-    """Load skills/role-skill-map.toml. Returns (map or None, warnings).
+    """Load skills/role-skill-map.toml merged with local/role-skill-map.toml.
+
+    The tracked map is the shipped default; the gitignored local map adds
+    personal per-role candidates on top (additive only). Returns
+    (map or None, warnings).
 
     A missing or unparseable map disables scoping (installers fall back to
     their unscoped behavior) — it must never break an install. Missing is
-    silent (the map is optional by design); unparseable warns.
+    silent (both maps are optional by design); unparseable warns. A broken
+    local map never disables the tracked one.
     """
-    map_path = repo_root / "skills" / "role-skill-map.toml"
-    if not map_path.exists():
-        return None, []
     if tomllib is None:
         return None, ["tomllib unavailable (Python 3.11+ required); skill scoping disabled"]
-    try:
-        data = parse_toml(map_path)
-    except MultiAgentFileError as exc:
-        return None, [f"{exc}; skill scoping disabled"]
-    return data, []
+
+    warnings: list[str] = []
+    map_path = repo_root / "skills" / "role-skill-map.toml"
+    data: dict[str, Any] | None = None
+    if map_path.exists():
+        try:
+            data = parse_toml(map_path)
+        except MultiAgentFileError as exc:
+            warnings.append(f"{exc}; skill scoping disabled")
+            return None, warnings
+
+    local_path = repo_root / "local" / "role-skill-map.toml"
+    if local_path.exists():
+        try:
+            local_data = parse_toml(local_path)
+        except MultiAgentFileError as exc:
+            warnings.append(f"{exc}; local skill-map overlay skipped")
+        else:
+            data = merge_role_skill_maps(data or {}, local_data)
+
+    return data, warnings
 
 
 def role_skill_candidates(skill_map: dict[str, Any], role: str) -> set[str] | None:

@@ -11,9 +11,10 @@ Client / CEO / Boss
   -> PM Agent, team lead
       -> Developer Agent
       -> Reviewer Agent
+      -> Researcher Agent (optional, read-only)
 ```
 
-PM is the main-thread agent. PM owns product clarity, task assignment, progress tracking, client closeout, and the mechanical routing that no other agent owns (run-folder creation, escalation respawning, worktree spawning, parallel-spawn dispatch). Developer and Reviewer report to PM and self-log their own inter-agent messages. The earlier dedicated `multiagent-orchestrator` role was removed on 2026-06-29 — see `CHANGELOG.md` for the reasoning and `FUTURE-PLANS.md` for when it will be reintroduced (autonomous-loop scenarios).
+PM is the main-thread agent. PM owns product clarity, task assignment, progress tracking, client closeout, and the mechanical routing that no other agent owns (run-folder creation, escalation respawning, worktree spawning, parallel-spawn dispatch). Developer, Reviewer, and the optional Researcher report to PM and self-log their own inter-agent messages. The earlier dedicated `multiagent-orchestrator` role was removed on 2026-06-29 — see `CHANGELOG.md` for the reasoning and `FUTURE-PLANS.md` for when it will be reintroduced (autonomous-loop scenarios).
 
 ## Key Files
 
@@ -34,11 +35,11 @@ PM is the main-thread agent. PM owns product clarity, task assignment, progress 
 - `antigravity/agents/*.md` - canonical Antigravity subagent definitions.
 - `antigravity/skill/multiagent-workflow/SKILL.md` - canonical Antigravity workflow skill.
 - `roles/*.md` - shared role instructions used by all platforms.
-- `skills/role-skill-map.toml` - editable per-role skill defaults. Codex installer enforces it as a hard allowlist; Claude Code installer injects matched skills into the installed agents' `skills:` frontmatter (preload); Antigravity is instruction-level only.
+- `skills/role-skill-map.toml` - editable per-role skill defaults. Codex installer enforces it as a hard allowlist; Claude Code installer injects matched skills into the installed agents' `skills:` frontmatter (preload); Antigravity is instruction-level only. The gitignored `local/role-skill-map.toml` merges additively on top for personal per-role additions.
 - `claude-code/hooks/` - canonical hook scripts shared by all platforms: `session-start-load-profile` (project profile), `user-prompt-pm-mode` (per-turn PM-role reinjection while a run is active; `.ps1`/`.sh` emit plain text for Claude Code/Codex, `.py` emits Antigravity's required `{"additionalContext": ...}` JSON contract), `subagent-log.py` (mechanical spawn/finish logging: SubagentStart/SubagentStop on Claude Code and Codex; PreToolUse/PostToolUse with matcher `invoke_subagent` on Antigravity), `stop-warn-unclosed-run`.
 - `codex/hooks.json` / `antigravity/hooks.json` - hook-config templates with different schemas (Codex: Claude-style `{"hooks": {...}}`; Antigravity: named hook groups, events limited to PreInvocation/PostInvocation/PreToolUse/PostToolUse/Stop). `prepare-run --project-hooks codex|antigravity` renders them into `<project>/.codex/hooks.json` / `<project>/.agents/hooks.json`.
-- `local/` (gitignored) - personal overlay. `local/overlays/roles/<role>.md` is merged into the **installed** agent copies at install time; canonical files ship clean. See `docs/skills-framework.md` "Local Overlay".
-- `examples/personal-profiles/` - one user's real skill setup, shipped as reference examples (not defaults).
+- `local/` (gitignored) - personal overlay. `local/overlays/roles/<role>.md` is merged into the **installed** agent copies at install time; `local/role-skill-map.toml` merges additively over the tracked skill map. Canonical files ship clean. See `docs/skills-framework.md` "Local Overlay".
+- `examples/personal-profiles/` - genericized examples of a personal skill setup (`local/role-skill-map.toml` + role overlays); illustrations, not defaults, and not anyone's live config.
 - `launch/*.md` - copy/paste launch prompts (Codex).
 - `templates/` - shared task, report, and message templates.
 - `scripts/multiagent_files.py` - runtime helper agents invoke during a run (prepare-run, append-message, status, set-state, close-run, activate-run). `prepare-run` also activates PM mode: writes `.multiagent/active-run.json` and inserts marker blocks (`<!-- multiagent:begin/end -->`) into the project's CLAUDE.md/AGENTS.md/GEMINI.md; `close-run` reverses both; `activate-run` restores PM mode for any existing run (resume, including closed runs).
@@ -113,8 +114,9 @@ Full step-by-step install commands (both PowerShell and Bash) live in `antigravi
 - Keep PM as the team lead AND the main-thread agent. Developer and Reviewer report to PM. PM owns mechanical routing in addition to product judgment.
 - Do not reintroduce a separate `multiagent-orchestrator` agent for the interactive workflow. The role was removed on 2026-06-29 (see `CHANGELOG.md`). It will come back only for the autonomous-loop scenario described in `FUTURE-PLANS.md`.
 - Keep the strong-tier pattern symmetric between Developer and Reviewer. `developer-strong` and `reviewer-strong` are escalation targets, not nicer defaults. PM hints via `Suggested Developer Tier`; the default `developer` may self-escalate via `ESCALATE_TO_STRONG_DEVELOPER`; PM performs the mechanical respawn. Update both sides of the pattern when changing one.
+- Keep `researcher` optional, read-only, and single-tier. It is spawned by PM on demand (large/unfamiliar codebase during discovery, or a worker's `exploration_request`), never as a default step, and has no strong variant. Its only write surface is run-folder messages via `append-message`. Do not give it Edit/Write tools or add it to the escalation pattern.
 - Keep a skill-installer or skill-search capability assigned to every custom agent so agents can search for missing skills. In `skills/role-skill-map.toml`, that capability lives in `[always]` — never remove it, or tier-2 discovery dies under Codex's hard allowlist.
-- Role guidance references skills by *category* ("a systematic-debugging skill"), not by concrete skill name — except in `skills/role-skill-map.toml`, which is exactly the place for concrete candidates. Personal-only content (e.g. the user's context-maintenance skill and its feedback loop) belongs in the gitignored `local/overlays/`, never in canonical files; the validator warns on leaks. Concrete-skill examples belong in `examples/personal-profiles/`.
+- Role guidance references skills by *category* ("a systematic-debugging skill"), not by concrete skill name — except in `skills/role-skill-map.toml`, which is exactly the place for concrete candidates. Personal-only content (e.g. the user's context-update skill and its dogfooding feedback loop) belongs in the gitignored `local/` (`local/overlays/roles/` for instruction text, `local/role-skill-map.toml` for skill assignments), never in canonical files; the validator warns on leaks. Genericized concrete-skill examples belong in `examples/personal-profiles/`.
 - If behavior changes, update both the shared `roles/*.md` docs and the matching platform-specific files (Codex `.toml` template, Claude Code `.md`, Antigravity `.md`).
 - Codex skill assignments: local skill paths belong in the generated `codex-agents/*.toml` (gitignored). Do not edit paths in `codex-agents/templates/*.toml`; edit `skills/role-skill-map.toml` (which skills per role) or the install script logic (how they're applied) instead. Claude Code and Antigravity auto-discover skills from `~/.claude/skills/` and `~/.gemini/config/skills/`; on Claude Code the installer additionally preloads mapped skills via the installed agents' `skills:` frontmatter.
 - Keep the PM-mode lifecycle symmetric: whatever `prepare-run` activates (active-run.json, marker blocks, project hooks), `close-run` must deactivate. The marker delimiters `<!-- multiagent:begin/end -->` are load-bearing — hooks and cleanup both key on them.
@@ -164,7 +166,7 @@ If a project thread does not recognize "Run the multiagent workflow":
 ### Codex
 1. Confirm `~/.codex/skills/multiagent-workflow/SKILL.md` exists.
 2. Confirm `~/.codex/agents/pm.toml` exists.
-3. Confirm the current subagent tool metadata lists `pm`, `developer`, `developer-strong`, `reviewer`, and `reviewer-strong`.
+3. Confirm the current subagent tool metadata lists `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and `researcher`.
 4. Restart Codex or open a fresh thread after install/update.
 5. Use the stronger prompt:
 ```text

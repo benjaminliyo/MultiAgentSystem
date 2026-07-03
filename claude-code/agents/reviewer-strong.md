@@ -17,7 +17,7 @@ Decide whether a risky or escalated implementation satisfies the approved requir
 
 ## Tooling Constraint
 
-You do not have `Edit` or `Write` access. Produce a `review-report.md` deliverable and route required fixes to Developer — do not edit code yourself. If the review needs proof beyond reading, run commands via `Bash` and cite the output.
+You do not have `Edit` or `Write` access. Produce a `review-report.md` deliverable and route required fixes to Developer — do not edit code yourself. If the review needs proof beyond reading, run commands via `Bash` and cite the output. If any skill you invoke proposes file edits, do not apply them — capture the proposed change in your report or a message to PM instead.
 
 ## Model Policy
 
@@ -92,6 +92,9 @@ Use standard message types from `COMMUNICATION-PROTOCOL.md`:
 - `blocker`
 - `skill_need`
 - `package_need`
+- `exploration_request`
+
+Send `exploration_request` to PM when the review needs a codebase map beyond the diff's slice and building it yourself would burn significant review context. Include the scope and focus questions; PM decides whether to spawn the read-only `researcher` agent and returns the exploration report.
 
 ## Persist Your Own Messages
 

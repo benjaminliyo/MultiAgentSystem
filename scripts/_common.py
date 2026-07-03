@@ -28,6 +28,7 @@ CANONICAL_AGENT_FILES = {
         "developer-strong.toml",
         "reviewer.toml",
         "reviewer-strong.toml",
+        "researcher.toml",
     ),
     "claude-code": (
         "pm.md",
@@ -35,6 +36,7 @@ CANONICAL_AGENT_FILES = {
         "developer-strong.md",
         "reviewer.md",
         "reviewer-strong.md",
+        "researcher.md",
     ),
     "antigravity": (
         "pm.md",
@@ -42,6 +44,7 @@ CANONICAL_AGENT_FILES = {
         "developer-strong.md",
         "reviewer.md",
         "reviewer-strong.md",
+        "researcher.md",
     ),
 }
 

@@ -61,6 +61,8 @@ If no skill-search-and-install capability is installed on the current platform, 
 
 The editable default skill list for the team. Per role it records skill *categories* (documentation and PM guidance) and concrete *candidates* (installed skill directory names). An `[always]` section lists skills every role gets — keep the search-and-install capability there so tier 2 survives hard allowlists.
 
+Personal additions live in the gitignored `local/role-skill-map.toml` (same schema). At install time it merges **additively** over the tracked map: local entries extend a role's candidates and never remove tracked ones; roles that exist only in the local map are added whole. A broken local map is skipped with a warning and never disables the tracked map. This is the channel for personal skills that should reach Codex's hard allowlist or Claude Code's `skills:` frontmatter without entering version control.
+
 The installer applies the map as far as each platform allows:
 
 | Platform     | Enforcement |
@@ -86,7 +88,7 @@ Packages are not counted against the skill install budget; the envelope plus PM 
 
 ## Local Overlay (`local/`, gitignored)
 
-Personal, machine-specific role additions live in `local/overlays/roles/<role>.md`. The installer merges them into the **installed** copies only (appended to Claude Code / Antigravity agent bodies; inserted into the generated Codex TOML's `developer_instructions`). Canonical files ship clean to GitHub; the validator warns if a canonical agent body mentions personal context-maintenance content. See `local/README.md` (created on first use) for layout and caveats.
+Personal, machine-specific role additions live in `local/overlays/roles/<role>.md` (instruction text) and `local/role-skill-map.toml` (skill assignments — see "Role-Skill Map" above). The installer merges overlays into the **installed** copies only (appended to Claude Code / Antigravity agent bodies; inserted into the generated Codex TOML's `developer_instructions`). Canonical files ship clean to GitHub; the validator warns if a canonical agent body mentions personal context-maintenance content. Genericized examples of both files live in `examples/personal-profiles/`. See `local/README.md` (created on first use) for layout and caveats.
 
 ## Per-Run Install Budget
 
@@ -107,7 +109,7 @@ PM tracks cumulative approved installs per run. When the budget is exhausted, fu
 The framework touches two integration surfaces:
 
 - **`templates/task-packet.md`** — has a `## Suggested Skills` section between `## Technical Decisions Delegated To Developer` and `## Suggested Developer Tier`. Three subsections: `### Tier 0 (install requests)`, `### Tier 1 (baseline skills the assigned role should draw on)`, `### Tier 2 (niche needs, if any)`. Tier 2 is usually empty in the packet — it's discovered during work — but PM may pre-populate it when they anticipate a niche need.
-- **Role files** — every role (`pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`) has a `### Skill Self-Check` subsection under its `## Skill Discovery` section. PM's version describes tier-0 authority; worker versions describe the tier-1 self-check and the tier-2 mid-work flow. Content is propagated to all three platform adapters (`claude-code/agents/*.md`, `antigravity/agents/*.md`, `codex-agents/templates/*.toml`).
+- **Role files** — every role (`pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, `researcher`) has a `### Skill Self-Check` subsection under its `## Skill Discovery` section. PM's version describes tier-0 authority; worker versions describe the tier-1 self-check and the tier-2 mid-work flow. Content is propagated to all three platform adapters (`claude-code/agents/*.md`, `antigravity/agents/*.md`, `codex-agents/templates/*.toml`).
 
 Role files reference skills by **category** (e.g., "a skill-search-and-install capability", "a systematic-debugging skill"). Concrete artifact names live only in this file, in `skills/find-skill.md`, and in `examples/personal-profiles/`.
 
@@ -138,7 +140,7 @@ Tier 1 degradation follows the same pattern: if a baseline skill is missing, the
 
 - Do not silently install a skill mid-work. Every install must be routed via `skill_need` → PM → Client (subject to budget).
 - Do not treat tier 2 as an escape hatch to install a skill for every subproblem. The install budget exists to protect focus; if you're hitting it often, the *packet* probably needs a tier-0 install instead.
-- Do not reference concrete skill names in role files. Category references only. Concrete names belong in this file, `skills/find-skill.md`, and personal profiles under `examples/personal-profiles/`.
+- Do not reference concrete skill names in role files. Category references only. Concrete names belong in this file, `skills/find-skill.md`, the skill maps (`skills/role-skill-map.toml`, `local/role-skill-map.toml`), and the genericized examples under `examples/personal-profiles/`.
 - Do not hard-block when the search-and-install capability isn't installed. Report and continue.
 - Do not re-define the install budget number in role files. The number lives here; role files reference it.
 - Do not skip tier 0 just because tier 2 exists. Anticipated installs belong up front so the client can approve them as part of the packet, not one at a time mid-run.

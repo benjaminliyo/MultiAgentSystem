@@ -30,7 +30,7 @@ Run the multiagent workflow for this project. Start with the PM agent.
 
 | Source (canonical repo)                             | Destination                                    |
 |-----------------------------------------------------|------------------------------------------------|
-| `codex-agents/templates/*.toml` (5 roles)           | `~/.codex/agents/*.toml` (rendered per user)   |
+| `codex-agents/templates/*.toml` (6 roles)           | `~/.codex/agents/*.toml` (rendered per user)   |
 | `codex-skill/multiagent-workflow/`                  | `~/.codex/skills/multiagent-workflow/`         |
 
 The installer:
@@ -42,7 +42,7 @@ The installer:
 
 The rendered `codex-agents/*.toml` files are gitignored so per-user skill paths never enter version control. The upstream templates in `codex-agents/templates/` are the source of truth.
 
-The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`. PM is the main-thread agent and absorbs mechanical routing. See `CHANGELOG.md` (2026-06-29) for why there's no `multiagent-orchestrator`.
+The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and optional read-only `researcher`. PM is the main-thread agent and absorbs mechanical routing. See `CHANGELOG.md` (2026-06-29) for why there's no `multiagent-orchestrator`.
 
 ## Verify
 
@@ -79,6 +79,7 @@ developer
 developer-strong
 reviewer
 reviewer-strong
+researcher   # optional, read-only exploration
 ```
 
 ## Troubleshooting

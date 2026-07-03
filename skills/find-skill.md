@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Tier 2 in the skills framework asks the worker (Developer, Developer-Strong, Reviewer, Reviewer-Strong) to notice mid-work that no installed skill covers the current subproblem, then find a candidate that would. That noticing is the easy part. Turning "I need something better here" into a concrete `skill_need` message with an installable candidate name is the hard part.
+Tier 2 in the skills framework asks the worker (Developer, Developer-Strong, Reviewer, Reviewer-Strong, Researcher) to notice mid-work that no installed skill covers the current subproblem, then find a candidate that would. That noticing is the easy part. Turning "I need something better here" into a concrete `skill_need` message with an installable candidate name is the hard part.
 
 The search-and-install capability solves the hard part. Without it, the tier-2 flow still runs — but the worker's `skill_need` message just names the *gap* rather than a specific candidate skill, and PM/Client have to hunt for the skill themselves.
 

@@ -37,14 +37,15 @@ categories = [
   "a brainstorming / product-discovery skill",
   "a plan-writing / goal-definition skill",
 ]
-candidates = ["brainstorming", "writing-plans"]
+candidates = ["brainstorming", "writing-plans", "define-goal"]
 
 [roles.developer]
 categories = [
   "a test-driven development skill",
   "a systematic-debugging skill",
   "a verification-before-completion skill",
-  "a plan-writing skill",
+  "a plan-writing / plan-execution skill",
+  "a code-review-response skill",
   "a version-control / collaboration skill",
 ]
 candidates = [
@@ -52,6 +53,8 @@ candidates = [
   "systematic-debugging",
   "verification-before-completion",
   "writing-plans",
+  "executing-plans",
+  "receiving-code-review",
   "github",
 ]
 
@@ -60,7 +63,8 @@ categories = [
   "a test-driven development skill",
   "a systematic-debugging skill",
   "a verification-before-completion skill",
-  "a plan-writing skill",
+  "a plan-writing / plan-execution skill",
+  "a code-review-response skill",
   "a version-control / collaboration skill",
 ]
 candidates = [
@@ -68,6 +72,8 @@ candidates = [
   "systematic-debugging",
   "verification-before-completion",
   "writing-plans",
+  "executing-plans",
+  "receiving-code-review",
   "github",
 ]
 
@@ -84,3 +90,13 @@ categories = [
   "a verification-before-completion skill",
 ]
 candidates = ["systematic-debugging", "verification-before-completion"]
+
+# Optional read-only exploration role. Candidates not installed are skipped
+# silently, so listing plausible exploration skills here is harmless.
+[roles.researcher]
+categories = [
+  "a codebase-exploration / code-search skill",
+  "a codebase-onboarding / architecture-summarization skill",
+  "a version-control / repository-history skill",
+]
+candidates = ["exploring-codebases", "codebase-onboarding", "github"]

@@ -26,10 +26,10 @@ That's it. Restart Antigravity/`agy`, then `/multiagent <task>` or the trigger p
 
 | Source (canonical repo)                          | Destination                                            |
 |--------------------------------------------------|--------------------------------------------------------|
-| `antigravity/agents/*.md` (5 files)              | `~/.gemini/config/agents/`                             |
+| `antigravity/agents/*.md` (6 files)              | `~/.gemini/config/agents/`                             |
 | `antigravity/skill/multiagent-workflow/SKILL.md` | `~/.gemini/config/skills/multiagent-workflow/SKILL.md` |
 
-The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`. PM is the main-thread agent and absorbs mechanical routing.
+The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and the optional read-only `researcher`. PM is the main-thread agent and absorbs mechanical routing.
 
 If a gitignored `local/overlays/roles/<role>.md` exists, the installer appends its content to the installed agent body — personal additions without touching canonical files.
 

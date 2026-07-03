@@ -28,6 +28,7 @@ The installed agent names are:
 - `developer-strong`
 - `reviewer`
 - `reviewer-strong`
+- `researcher` (optional, read-only exploration)
 
 Note: `multiagent-orchestrator` was deprecated on 2026-06-29 (see `CHANGELOG.md`). PM is the main-thread agent and absorbs mechanical routing. The deprecated TOML may still be present in older installs; that is harmless.
 
@@ -72,6 +73,8 @@ If the agents above are missing from the current subagent tool metadata, tell th
 19. Close task-scoped Developer and Reviewer agents only after their final inter-agent output has been saved or the failed save has been recorded in `run-summary.md`.
 20. At closeout (Reviewer PASS + client closeout delivered), PM runs `python <MULTIAGENT_REPO>/scripts/multiagent_files.py close-run --root <project-root>` to deactivate PM mode: terminal state set, marker blocks removed, `active-run.json` deleted.
 
+Optional Researcher: on a large or unfamiliar codebase, PM may spawn the read-only `researcher` agent with a scoped exploration assignment (scope, focus questions, run directory) — during discovery before drafting the task packet, or when Developer/Reviewer sends an `exploration_request`. The Researcher self-logs an `exploration_report`; PM folds durable findings into `.multiagent/project-profile.md`. No strong tier, no new workflow state, and it may run in parallel with other workers since it is read-only.
+
 Do not archive unrelated private user-agent conversation unless it is explicitly routed as workflow input or a client decision.
 
 ## Deactivation And Resume
@@ -104,7 +107,7 @@ REPORT:
 If Codex does not recognize the workflow:
 
 - Verify `~/.codex/agents/pm.toml` exists.
-- Verify the current subagent tool lists `pm`, `developer`, `developer-strong`, `reviewer`, and `reviewer-strong`. (`multiagent-orchestrator` was deprecated 2026-06-29; it may still appear in old installs.)
+- Verify the current subagent tool lists `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and `researcher`. (`multiagent-orchestrator` was deprecated 2026-06-29; it may still appear in old installs.)
 - If files exist but roles are absent, restart Codex or open a new thread.
 - If roles exist but the model still uses a generic agent, make the prompt more explicit: "Spawn the custom `pm` agent using `agent_type: pm`."
 - If roles exist but spawning `pm` fails with `spawn_agent could not resolve the child model for service tier validation`, do not fall back to pretending a generic agent is PM. Test whether a built-in role such as `default` can spawn. If built-in spawning works, report this as a custom-agent model/service-tier validation failure and recommend restarting Codex or opening a fresh thread with a supported Codex model selected.

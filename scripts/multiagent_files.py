@@ -77,6 +77,12 @@ DEFAULT_ROLES = (
         "may_modify_business_code": False,
         "artifact_scope": ["risk-review-report", "test-artifacts"],
     },
+    {
+        "role": "researcher",
+        "reports_to": "pm",
+        "may_modify_business_code": False,
+        "artifact_scope": ["exploration-report"],
+    },
 )
 
 # `orchestrator` is retained as a valid message role for forward compatibility
@@ -89,6 +95,7 @@ VALID_MESSAGE_ROLES = {
     "developer-strong",
     "reviewer",
     "reviewer-strong",
+    "researcher",
     "orchestrator",
 }
 
@@ -191,6 +198,7 @@ Not recorded yet.
 - developer-strong: not recorded
 - reviewer: not recorded
 - reviewer-strong: not recorded
+- researcher: not recorded (optional)
 
 ## Routing Notes
 

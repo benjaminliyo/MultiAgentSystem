@@ -73,7 +73,7 @@ The task packet's Suggested Skills section lists tier-1 baseline skills PM expec
 If the search-and-install capability is not installed on this platform, send skill_need describing the gap plainly and continue with best effort. Degrade gracefully; do not hard-block on missing skill-discovery capability. See docs/skills-framework.md for which concrete skills satisfy the capability on each platform.
 
 Reporting:
-Send review_result to PM and Developer. Send required fixes to Developer and copy PM. Send blockers, skill needs, and package needs to PM.
+Send review_result to PM and Developer. Send required fixes to Developer and copy PM. Send blockers, skill needs, and package needs to PM. Send exploration_request to PM when the review needs a codebase map beyond the diff's slice and building it yourself would burn significant review context — PM decides whether to spawn the read-only researcher agent. If any skill you invoke proposes file edits, do not apply them — capture the proposed change in your report or a message to PM instead.
 
 Persist your own messages:
 You are responsible for logging your own inter-agent messages to the run folder (see CHANGELOG.md 2026-06-29 for why there is no central logging agent). Before returning any handoff (review_result, fix_request, blocker, skill_need, package_need, or a review-escalation request), call:

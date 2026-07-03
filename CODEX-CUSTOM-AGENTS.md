@@ -35,6 +35,7 @@ Without that skill or the full launch prompt, a root Codex session may search th
 - `developer-strong`: Strong-tier developer for high-risk implementation. Self-logs its own messages.
 - `reviewer`: Efficient test engineer and reviewer agent for routine implementation reviews.
 - `reviewer-strong`: Strong reviewer agent for risky diffs, failed review loops, or escalations from the efficient reviewer.
+- `researcher`: Optional read-only exploration agent. PM spawns it to map large or unfamiliar codebases and answer focus questions; no write access, no strong tier. Self-logs its own messages.
 - `multiagent-orchestrator`: **REMOVED 2026-06-29.** See `CHANGELOG.md` for the reasoning. Will be revived for autonomous-loop scenarios per `FUTURE-PLANS.md`.
 
 ## Recommended Use
@@ -53,6 +54,7 @@ developer
 developer-strong
 reviewer
 reviewer-strong
+researcher   # optional, read-only
 ```
 
 If the subagent tool metadata does not list these roles, restart Codex or open a new thread. The custom TOML files are loaded as session/tool configuration, so stale sessions may not see newly installed agents.
@@ -81,7 +83,7 @@ The installer (`.\scripts\install.ps1 codex` or `./scripts/install.sh codex`) sc
 
 The generated `codex-agents/*.toml` files are gitignored so personal paths never enter version control.
 
-For a working reference of one user's real skill setup, see `examples/personal-profiles/`. Do not copy those skill lists blindly — the names refer to specific installations that vary per user.
+For genericized examples of a personal skill setup (a `local/role-skill-map.toml` overlay plus role overlays), see `examples/personal-profiles/`. Do not copy the skill names blindly — they are illustrations; installations vary per user.
 
 If a Developer task needs a domain skill that no template lists (databases, embedded, LaTeX, scientific compute, etc.), the Developer should use a skill-installer or skill-search capability to find and request installation via a `skill_need` message routed through PM.
 
@@ -91,7 +93,9 @@ All agents should have a skill-installer or skill-search capability available fo
 
 Use Scoped Autonomy as the normal run-level permission pattern: PM asks once for workspace/project read-write access for PM and spawned agents, then escalates only for access outside that envelope.
 
-Use a balanced automatic model policy by default. PM uses `gpt-5.5` with `xhigh` reasoning — strongest model because PM now combines product judgment with mechanical routing. Developer remains on `gpt-5.5` with `high` reasoning because it owns technical design and implementation. Reviewer uses `gpt-5.4-mini` with `medium` reasoning by default. Reviewer escalations use `reviewer-strong`, which runs `gpt-5.5` with `high` reasoning for large or risky diffs, security/data-loss concerns, or failed review loops. There is no separate orchestrator model — see `CHANGELOG.md` (2026-06-29).
+Use a balanced automatic model policy by default. PM uses `gpt-5.5` with `xhigh` reasoning — strongest model because PM now combines product judgment with mechanical routing. Developer remains on `gpt-5.5` with `high` reasoning because it owns technical design and implementation. Reviewer uses `gpt-5.4-mini` with `medium` reasoning by default. Reviewer escalations use `reviewer-strong`, which runs `gpt-5.5` with `high` reasoning for large or risky diffs, security/data-loss concerns, or failed review loops. The optional `researcher` uses `gpt-5.4-mini` with `medium` reasoning — exploration is breadth-and-summarize work with no strong tier. There is no separate orchestrator model — see `CHANGELOG.md` (2026-06-29).
+
+The `researcher` is the one exception to Scoped Autonomy: its template ships a hard permission profile (`default_permissions = "researcher"` in `codex-agents/templates/researcher.toml`) — workspace read-only, write access limited to `.multiagent/` (run-folder logging via `append-message`), network disabled. This makes the role's read-only contract mechanical on Codex instead of instruction-following; the prompt remains the behavioral contract. The profile is deliberately researcher-only: PM and Developer need write access, and Reviewer — read-only by contract — still runs verification commands that mutate the workspace (bytecode caches, build and test artifacts), so a workspace-read profile would break its job. Known caveat of `network.enabled = false`: local git history works, but repository-history skills that fetch remote PR/issue context will fail — the researcher should report that need to PM rather than work around it.
 
 The root session should also have the `multiagent-workflow` skill installed at:
 

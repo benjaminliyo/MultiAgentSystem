@@ -23,6 +23,7 @@ Use this routing model:
 - Developer owns technical design, implementation, tests, technical docs, and implementation report.
 - Reviewer acts like a test engineer/code reviewer and checks the diff, tests, task packet, and project profile.
 - Use `reviewer-strong` instead of `reviewer` when the review is large, security-sensitive, data-loss-prone, concurrency-heavy, migration-related, dependency-risky, authentication/authorization-related, or when a previous efficient review failed or requested escalation.
+- Optionally spawn the read-only `researcher` when understanding a large or unfamiliar codebase is its own chunk of work (PM discovery, or a worker's `exploration_request`). It returns an `exploration_report`; PM folds durable findings into the project profile.
 - Route Reviewer FAIL findings back to Developer when they are implementation defects.
 - Route product ambiguity, scope changes, or acceptance-criteria conflicts back to PM/client.
 - Let all agents use skill-installer to search for missing skills when needed.

@@ -18,7 +18,7 @@ PM owns product judgment AND mechanical routing. The spawnable `pm` agent file e
 1. **Adopt PM's role.** Read `~/.gemini/config/agents/pm.md` (or the canonical copy). Follow it for the rest of the run.
 2. **Scoped Autonomy preflight.** Ask the client once whether the run may use workspace/project read-write access for PM, Developer, and Reviewer, and whether commands inside the workspace may run without per-call confirmation. Also resolve the project's canonical environment (`.venv`, conda, uv/poetry), record it in `.multiagent/project-profile.md`, and ask the one package question (may workers install into that env without per-item approval?). Note the decisions; you'll save them in the run-summary.
 3. **Dynamic Subagent Registration (Self-Healing).**
-   Check if the subagents `developer`, `developer-strong`, `reviewer`, and `reviewer-strong` are defined in the session. If not, or to ensure they are up to date with their instructions, read their definitions from `~/.gemini/config/agents/<role>.md` or `<workspace-root>/.agents/<role>.md` (or `antigravity/agents/<role>.md` in this repo), parse their YAML frontmatter and body, and call `define_subagent` to register them dynamically in the active session.
+   Check if the subagents `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and (when needed) `researcher` are defined in the session. If not, or to ensure they are up to date with their instructions, read their definitions from `~/.gemini/config/agents/<role>.md` or `<workspace-root>/.agents/<role>.md` (or `antigravity/agents/<role>.md` in this repo), parse their YAML frontmatter and body, and call `define_subagent` to register them dynamically in the active session.
 4. **Create the run folder and activate PM mode.** Run:
    ```powershell
    python scripts/multiagent_files.py prepare-run --root <project-root> --task "<short task name>" --project-hooks antigravity
@@ -51,13 +51,19 @@ Default to `invoke_subagent` with `TypeName: "reviewer"`. Use `reviewer-strong` 
 
 If the default reviewer returns `ESCALATE_TO_STRONG_REVIEWER`, respawn on `reviewer-strong` with the escalation reason attached.
 
+## Spawning Researcher (Optional)
+
+`invoke_subagent` with `TypeName: "researcher"` spawns an optional read-only exploration agent — no write access, no strong tier, no new workflow state. Spawn it when understanding the codebase is its own chunk of work: during `pm_discovery` on a large or unfamiliar project before drafting the task packet, or when Developer/Reviewer sends an `exploration_request`. Register it dynamically like the other roles if it is not defined in the session.
+
+Pass a scoped assignment (exploration scope, concrete focus questions, depth hint) and the run directory — it self-logs an `exploration_report`. It cannot write to the project: fold durable findings into `.multiagent/project-profile.md` yourself and attach the report when spawning workers who need it.
+
 ## Parallel Spawning
 
 When the next Developer slice is independent of the current Reviewer pass (non-overlapping files, no shared state), spawn both in the same turn by including multiple entries in the `Subagents` array of `invoke_subagent` — they run in parallel.
 
 ## Worker Self-Logging
 
-Workers (Developer, Developer-Strong, Reviewer, Reviewer-Strong) self-log their own inter-agent messages via `python scripts/multiagent_files.py append-message --from-role <role> ...`. You do not log on their behalf. Always pass the run directory when spawning them so they can write to it.
+Workers (Developer, Developer-Strong, Reviewer, Reviewer-Strong, Researcher) self-log their own inter-agent messages via `python scripts/multiagent_files.py append-message --from-role <role> ...`. You do not log on their behalf. Always pass the run directory when spawning them so they can write to it.
 
 ## Closeout
 
@@ -75,7 +81,7 @@ When Reviewer returns PASS:
 
 ## Troubleshooting
 
-**Subagent types missing.** If `pm`, `developer`, `developer-strong`, `reviewer`, or `reviewer-strong` are not available:
+**Subagent types missing.** If `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, or `researcher` are not available:
 
 1. Verify they are installed in `~/.gemini/config/agents/`.
 2. Start a new session.

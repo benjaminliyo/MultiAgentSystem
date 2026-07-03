@@ -11,9 +11,10 @@ Client / CEO / Boss
   -> PM Agent, team lead
       -> Developer Agent
       -> Reviewer Agent
+      -> Researcher Agent (optional, read-only)
 ```
 
-The human is the Client, CEO, or Boss. The PM Agent is the team lead and primary interface to the human. Developer and Reviewer report to the PM.
+The human is the Client, CEO, or Boss. The PM Agent is the team lead and primary interface to the human. Developer, Reviewer, and the optional Researcher report to the PM.
 
 Runtime note: Codex subagents are usually direct children of the root session. Because default subagent nesting depth is limited, the root session may perform the mechanical routing on behalf of the PM. The process authority still belongs to the PM.
 
@@ -70,11 +71,23 @@ Owns:
 
 Reviewer behaves like a test engineer and code reviewer. Reviewer should return actionable failures to Developer and report final pass status to PM.
 
+### Researcher Agent (optional)
+
+Owns:
+
+- codebase structure and architecture mapping
+- locating code relevant to a stated task or question
+- convention, dependency, and environment inventory
+- answers to PM's focus questions, with file:line evidence
+- exploration reports to PM
+
+Researcher is read-only: no edits, no installs, no state changes. PM spawns it on demand — typically during discovery on a large or unfamiliar project, or when Developer/Reviewer sends an `exploration_request`. It has no strong tier. PM folds durable findings into the project profile, since the Researcher cannot write.
+
 ## Standard Lifecycle
 
 1. Client gives PM a request.
 2. PM (as the main-thread agent) performs the Scoped Autonomy preflight for the run.
-3. PM clarifies the request until product-level ambiguity is resolved.
+3. PM clarifies the request until product-level ambiguity is resolved. On a large or unfamiliar project, PM may spawn the optional read-only Researcher here to map the codebase before drafting the task packet.
 4. PM writes a client task packet and gets approval when needed.
 5. PM assigns an implementation task to Developer.
 6. Developer writes a technical plan, implements, tests locally, and sends a ready-for-review message.
@@ -157,6 +170,7 @@ Recommended default:
 - PM: read the whole project; write planning, task, and process docs.
 - Developer: read the whole project; write implementation files, tests, and technical docs inside the workspace.
 - Reviewer: read the whole project; write review reports and test artifacts; code edits only when explicitly asked.
+- Researcher: read the whole project; write nothing except its own run-folder messages via the logging helper.
 - PM/root session: enough permission to route messages, create artifacts, spawn agents, and copy approved agent configs.
 
 Avoid broad unrestricted access as a default. Use the Scoped Autonomy preflight for normal project work, and escalate only when a task needs permissions beyond that approved run envelope.
@@ -178,6 +192,7 @@ Current balanced custom-agent defaults:
 - Strong Developer: `gpt-5.5` with `xhigh` reasoning.
 - Reviewer: `gpt-5.4-mini` with `medium` reasoning.
 - Strong Reviewer: `gpt-5.5` with `high` reasoning.
+- Researcher (optional): `gpt-5.4-mini` with `medium` reasoning — exploration is breadth-and-summarize work; no strong tier.
 
 PM runs on the strongest model because it combines product judgment with mechanical routing. There is no separate orchestrator model in the interactive workflow as of 2026-06-29 (see `CHANGELOG.md`).
 
