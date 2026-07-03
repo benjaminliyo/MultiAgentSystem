@@ -63,13 +63,21 @@ All hooks are silent outside active multiagent runs, and unknown payload shapes 
 
 ## Permission Configuration & Scoped Autonomy
 
-The MultiAgentSystem workflow relies on **Scoped Autonomy**: you grant permission to the PM agent *once* at the beginning of the run. To prevent repetitive confirmation prompts for every script, tool call, or file edit executed by the spawned subagents (`developer`, `reviewer`, etc.):
+The MultiAgentSystem workflow relies on **Scoped Autonomy**: you grant permission to the PM agent *once* at the beginning of the run. 
 
-1. **PM Agent** retains `permissionMode: plan` so it presents the task packet to you for plan-level approval.
-2. **Subagents** are automatically switched to `permissionMode: bypassPermissions` when copied by the installer, so they run their tasks without prompting.
+### Bypassing Prompts via CLI Flags
+Due to Google Antigravity's session architecture, subagent tool calls are routed through the root CLI session, and dynamically registered subagents ignore frontmatter overrides. If the root session is run in normal confirmation mode, it will intercept all subagent tool execution and prompt you for approval anyway. 
+
+If you wish to bypass these prompts and allow subagents to execute their tasks autonomously, you can launch your root Antigravity session (`agy`) with the `--dangerously-skip-permissions` flag:
+
+```bash
+agy --dangerously-skip-permissions
+```
+
+**Warning:** this flag auto-approves *every* tool call for the entire session — including actions outside the Scoped Autonomy envelope, such as network access, package installs, and file operations outside the workspace. Treat it as a deliberate opt-in for trusted workspaces, not a default. The PM agent still behaviorally enforces the **Plan-Mode / Client Approval Gate**: the PM drafts the task packet, presents it to you, and waits for your conversational confirmation before spawning subagents or executing implementation steps — but with this flag active that gate is instruction-level, not mechanical.
 
 ### Safety Defaults in Repository
-The canonical files in the `antigravity/agents/` folder of this repository are checked in with `permissionMode: plan` as a security baseline. This prevents cloned repository files from running unconfirmed commands on your machine. The installer script `install.py` transforms the copies it deploys.
+The canonical files in the `antigravity/agents/` folder of this repository are checked in with `permissionMode: plan` as a security baseline. This prevents cloned repository files from running unconfirmed commands on your machine. The installer script `install.py` automatically transforms the copied subagent files to `permissionMode: bypassPermissions` when deploying them. The frontmatter mode applies to statically loaded agents (discovered from `~/.gemini/config/agents/` at session start); dynamically registered subagents ignore it, since `define_subagent` has no `permissionMode` parameter.
 
 ### Customizing Deployed Permissions
 If you prefer to keep prompt-level confirmation for subagents, you can override this behavior during installation by specifying the `--antigravity-subagent-permission-mode` flag:

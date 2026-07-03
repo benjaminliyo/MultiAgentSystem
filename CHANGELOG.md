@@ -10,6 +10,35 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-03 — Antigravity root-session interception limits subagent permissionMode
+
+### Decision
+
+Keep the installer's `permissionMode: plan` → `bypassPermissions` transformation, and document two Antigravity platform constraints discovered in live testing instead of reverting it. This entry qualifies (does not reverse) the prior entry "Automated Antigravity subagent permission configuration for Scoped Autonomy" below.
+
+1. **`define_subagent` discards `permissionMode`.** The dynamic-registration tool accepts only `name`, `description`, `system_prompt`, and the `enable_*_tools` flags. Frontmatter permission modes are honored only for agents statically discovered from `~/.gemini/config/agents/` at session start; the self-healing dynamic-registration path silently drops them.
+2. **Root-session interception.** Subagent tool calls execute inside the root session's permission boundary. When the root session runs in interactive confirmation mode (the default), it intercepts and prompts for subagent commands regardless of any agent-level permission mode.
+
+Full subagent autonomy on Antigravity therefore additionally requires launching the root session with `agy --dangerously-skip-permissions`. This is documented as a deliberate opt-in, **not** a recommended default: the flag auto-approves every tool call for the entire session, including actions outside the Scoped Autonomy envelope.
+
+### Why
+
+The frontmatter rewrite remains load-bearing on the static discovery path — a statically loaded worker carrying `permissionMode: plan` still behaves like a planner even when the root session bypasses prompts — and it is harmless on the dynamic path, where any mode would be discarded anyway. It also becomes fully effective if a future Antigravity version adds `permissionMode` to `define_subagent` or parent-mode inheritance. Reverting would restore the worker-side plan gate for no safety gain, since canonical files in git still ship `permissionMode: plan`.
+
+### Files affected
+
+- `antigravity/INSTALL.md` — "Permission Configuration & Scoped Autonomy" reworked: root-session constraint, opt-in `--dangerously-skip-permissions` usage with an explicit risk warning.
+- `AGENTS.md`, `CLAUDE.md` — Antigravity install notes state the session-level constraint as a documented opt-in, not a recommendation.
+- `antigravity/agents/pm.md`, `antigravity/skill/multiagent-workflow/SKILL.md` — self-healing registration notes updated with the root-session constraint so PM can surface it to the client.
+- `CHANGELOG.md` — this entry.
+
+### Reversal triggers
+
+- If a future Google Antigravity version honors `permissionMode` for dynamically registered subagents or inherits the parent grant, remove the `--dangerously-skip-permissions` guidance and rely on the installer transformation alone.
+- The prior entry's reversal triggers remain in force for the installer transformation itself.
+
+---
+
 ## 2026-07-03 — Automated Antigravity subagent permission configuration for Scoped Autonomy
 
 ### Decision
