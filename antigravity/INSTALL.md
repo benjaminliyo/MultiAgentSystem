@@ -61,6 +61,31 @@ Note: the Stop entry runs the plain-text `stop-warn-unclosed-run` script; whethe
 
 All hooks are silent outside active multiagent runs, and unknown payload shapes degrade to transcript-only records.
 
+## Permission Configuration & Scoped Autonomy
+
+The MultiAgentSystem workflow relies on **Scoped Autonomy**: you grant permission to the PM agent *once* at the beginning of the run. To prevent repetitive confirmation prompts for every script, tool call, or file edit executed by the spawned subagents (`developer`, `reviewer`, etc.):
+
+1. **PM Agent** retains `permissionMode: plan` so it presents the task packet to you for plan-level approval.
+2. **Subagents** are automatically switched to `permissionMode: bypassPermissions` when copied by the installer, so they run their tasks without prompting.
+
+### Safety Defaults in Repository
+The canonical files in the `antigravity/agents/` folder of this repository are checked in with `permissionMode: plan` as a security baseline. This prevents cloned repository files from running unconfirmed commands on your machine. The installer script `install.py` transforms the copies it deploys.
+
+### Customizing Deployed Permissions
+If you prefer to keep prompt-level confirmation for subagents, you can override this behavior during installation by specifying the `--antigravity-subagent-permission-mode` flag:
+
+```bash
+# Deploys subagents with "plan" mode (prompts on every command)
+python scripts/install.py install --platform antigravity --antigravity-subagent-permission-mode plan
+```
+
+### Upgrade Note
+If you have an existing installation, you must re-run the installer and start a fresh Antigravity/`agy` session to pick up the permission changes:
+
+```bash
+python scripts/install.py install --platform antigravity
+```
+
 ## Verify
 
 ```powershell

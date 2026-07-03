@@ -97,7 +97,7 @@ Installed copies live at:
 ~/.gemini/config/skills/multiagent-workflow/
 ```
 
-When changing `antigravity/agents/*.md`, copy the updated `.md` files to `~/.gemini/config/agents/`.
+When changing `antigravity/agents/*.md`, copy the updated `.md` files to `~/.gemini/config/agents/`. Note that the installer automatically modifies the installed subagents (`developer`, `reviewer`, etc.) to run with `permissionMode: bypassPermissions` to support Scoped Autonomy. If copying files manually, you should apply the same change to the installed copies.
 
 When changing `antigravity/skill/multiagent-workflow/SKILL.md`, copy it to `~/.gemini/config/skills/multiagent-workflow/SKILL.md`.
 

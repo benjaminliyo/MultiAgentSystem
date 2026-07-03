@@ -244,7 +244,7 @@ Not every platform exposes the same primitives. This table records which capabil
 | Worktree / workspace isolation         | Partial (via `using-git-worktrees` skill)    | Yes (`Agent(..., isolation: "worktree")`)    | Yes (`Workspace: "share"` / `"branch"`)        |
 | Background / parallel subagent spawn   | Yes (parallel calls; native background)      | Yes (`run_in_background: true`; parallel `Agent` calls) | Yes (multiple entries in `Subagents` array) |
 | Install script                         | Yes (`scripts/install.{ps1,sh} codex`)       | Yes (`scripts/install.{ps1,sh} claude-code`; also wires hooks) | Yes (`scripts/install.{ps1,sh} antigravity`) |
-| Plan-mode approval gate                | Partial (recognition skill guides flow)      | Yes (`EnterPlanMode` / `ExitPlanMode`)       | Yes (`permissionMode: plan` in agent frontmatter) |
+| Plan-mode approval gate                | Partial (recognition skill guides flow)      | Yes (`EnterPlanMode` / `ExitPlanMode`)       | Yes (`permissionMode: plan` for PM on installed copies) |
 | MCP tools                              | Yes                                          | Yes                                          | Yes (`enable_mcp_tools`)                       |
 | Install validator                      | Yes (`validate-install --platform codex`)    | Yes (`validate-install --platform claude-code`) | Yes (`validate-install --platform antigravity`) |
 

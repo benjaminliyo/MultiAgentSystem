@@ -1069,7 +1069,7 @@ class MultiAgentFilesTests(unittest.TestCase):
         for d in (agents_src, skill_src, home):
             d.mkdir(parents=True)
 
-        agent_body = "---\nname: {name}\ndescription: {name}.\n---\nBody. context-maintenance.\n"
+        agent_body = "---\nname: {name}\ndescription: {name}.\npermissionMode: plan\n---\nBody. context-maintenance.\n"
         for fn in install.CANONICAL_AGENT_FILES["antigravity"]:
             (agents_src / fn).write_text(agent_body.format(name=fn.removesuffix(".md")), encoding="utf-8")
 
@@ -1094,6 +1094,90 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertTrue(
                 (fx["antigravity_home"] / "skills" / "multiagent-workflow" / "SKILL.md").exists()
             )
+
+            # Assert switched permissions list returned in payload
+            expected_switched = [
+                "developer",
+                "developer-strong",
+                "reviewer",
+                "reviewer-strong",
+                "researcher",
+            ]
+            self.assertEqual(sorted(payload["switched_permissions"]), sorted(expected_switched))
+
+            # Assert actual file contents of installed agents
+            pm_text = (fx["antigravity_home"] / "agents" / "pm.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: plan", pm_text)
+            self.assertNotIn("permissionMode: bypassPermissions", pm_text)
+
+            dev_text = (fx["antigravity_home"] / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: bypassPermissions", dev_text)
+            self.assertNotIn("permissionMode: plan", dev_text)
+
+    def test_install_antigravity_keep_plan_mode_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_antigravity_source_fixture(tmp)
+
+            payload = install.install_antigravity(
+                repo_root=fx["repo"],
+                antigravity_home=fx["antigravity_home"],
+                subagent_permission_mode="plan",
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            self.assertEqual(payload["switched_permissions"], [])
+
+            pm_text = (fx["antigravity_home"] / "agents" / "pm.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: plan", pm_text)
+
+            dev_text = (fx["antigravity_home"] / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: plan", dev_text)
+            self.assertNotIn("permissionMode: bypassPermissions", dev_text)
+
+    def test_install_dispatch_forwards_subagent_permission_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_antigravity_source_fixture(tmp)
+
+            payload = install.install_dispatch(
+                repo_root=fx["repo"],
+                platform="antigravity",
+                antigravity_home=fx["antigravity_home"],
+                antigravity_subagent_permission_mode="plan",
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            ag_result = payload["results"]["antigravity"]
+            self.assertEqual(ag_result["switched_permissions"], [])
+
+            dev_text = (fx["antigravity_home"] / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: plan", dev_text)
+
+    def test_install_antigravity_cli_arguments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_antigravity_source_fixture(tmp)
+            repo = fx["repo"]
+            home = fx["antigravity_home"]
+
+            # Call install-antigravity with default flag (bypassPermissions)
+            code = install.main([
+                "install-antigravity",
+                "--repo-root", str(repo),
+                "--antigravity-home", str(home)
+            ])
+            self.assertEqual(code, 0)
+            dev_text = (home / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: bypassPermissions", dev_text)
+
+            # Call with --antigravity-subagent-permission-mode plan
+            code = install.main([
+                "install-antigravity",
+                "--repo-root", str(repo),
+                "--antigravity-home", str(home),
+                "--antigravity-subagent-permission-mode", "plan"
+            ])
+            self.assertEqual(code, 0)
+            dev_text2 = (home / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: plan", dev_text2)
 
     # ---- active-run lifecycle: markers, set-state, close-run ----
 

@@ -10,6 +10,34 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-03 — Automated Antigravity subagent permission configuration for Scoped Autonomy
+
+### Decision
+
+1. **Automated subagent permission mode translation.** The installer (`scripts/install.py`) will automatically substitute `permissionMode: plan` with `permissionMode: bypassPermissions` for all Antigravity subagents (`developer`, `developer-strong`, `reviewer`, `reviewer-strong`, `researcher`) during `install_antigravity` (unless the new override flag `--antigravity-subagent-permission-mode plan` is passed). PM (`pm.md`) retains `permissionMode: plan` as the client-approval gate.
+2. **Dynamic subagent registration (self-healing) permission alignment.** Updated `antigravity/agents/pm.md` and `antigravity/skill/multiagent-workflow/SKILL.md` to explicitly instruct the PM agent and the workflow skill to register subagents using `bypassPermissions` during dynamic (`define_subagent`) self-healing registration, matching the mode used by installed configuration copies, even if they fall back to canonical repo/workspace copies that still declare `permissionMode: plan`.
+3. **Strict substitution checking.** The installer now checks that the target `permissionMode: plan` occurs exactly once in each subagent file before replacement, raising a warning on mismatch to prevent silent installation failures if agent frontmatter files are edited in the future.
+4. **Documentation and upgrade guidance.** Added the new design to `CHANGELOG.md`, `AGENTS.md`, `CLAUDE.md`, and `README.md`. Instructed existing users to re-run the installer.
+
+### Why
+
+The MultiAgentSystem is conceptually designed around Scoped Autonomy, where the client grants permission once at the beginning of a run to the PM, and workers execute tasks autonomously without per-action prompts. However, the canonical templates checked into git must keep `permissionMode: plan` as a repository safety baseline to prevent downloaded repos from immediately executing code. Automated transformation during installation resolves this contradiction, while updating the dynamic self-healing path prevents stale installs or dynamic fallbacks from silently reintroducing the per-action confirmation prompts.
+
+### Files affected
+
+- `scripts/install.py` — `install_dispatch`, `install_antigravity`, CLI parser changes, strict count checks, and returning `switched_permissions`.
+- `antigravity/agents/pm.md` — PM self-healing instructions updated under "Routing And Run Management".
+- `antigravity/skill/multiagent-workflow/SKILL.md` — workflow skill self-healing instructions updated.
+- `antigravity/INSTALL.md` — new "Permission Configuration & Scoped Autonomy" section added with upgrade note.
+- `AGENTS.md`, `CLAUDE.md` — documented the transformation under "Canonical vs Installed Copies → Google Antigravity".
+- `README.md` — comparison table updated for Antigravity plan-mode gate.
+- `CHANGELOG.md` — this entry.
+
+### Reversal triggers
+
+- If a future Google Antigravity version provides built-in parental permission inheritance for subagents, restore `permissionMode: plan` across all worker agents and rely on the native inheritance feature.
+- If users prefer prompt confirmation for all subagent tool calls, they can pass `--antigravity-subagent-permission-mode plan` during installation.
+
 ---
 
 ## 2026-07-03 — Release-readiness pass: runtime state untracked, copyable docs made portable

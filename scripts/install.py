@@ -826,6 +826,7 @@ def _wire_claude_hooks(repo: Path, home: Path) -> dict[str, Any]:
 def install_antigravity(
     repo_root: Path,
     antigravity_home: Path | None = None,
+    subagent_permission_mode: str = "bypassPermissions",
 ) -> dict[str, Any]:
     """Install the multi-agent workflow into ~/.gemini/config/."""
     repo = require_dir(repo_root, "Repository root")
@@ -841,6 +842,7 @@ def install_antigravity(
 
     installed: list[str] = []
     warnings: list[str] = []
+    switched_list: list[str] = []
 
     for name in CANONICAL_AGENT_FILES["antigravity"]:
         src = source_agents / name
@@ -848,7 +850,20 @@ def install_antigravity(
             warnings.append(f"Missing agent file in repo: {src}")
             continue
         text = src.read_text(encoding="utf-8")
-        overlay = load_role_overlay(repo, name.removesuffix(".md"))
+
+        role = name.removesuffix(".md")
+        if role != "pm" and subagent_permission_mode != "plan":
+            target = "permissionMode: plan"
+            count = text.count(target)
+            if count != 1:
+                warnings.append(
+                    f"Expected exactly one '{target}' in canonical {name} to substitute, found {count}"
+                )
+            else:
+                text = text.replace(target, f"permissionMode: {subagent_permission_mode}", 1)
+                switched_list.append(role)
+
+        overlay = load_role_overlay(repo, role)
         if overlay is not None:
             text = append_overlay_markdown(text, overlay)
         dst = home / "agents" / name
@@ -864,6 +879,7 @@ def install_antigravity(
         "repo_root": str(repo),
         "antigravity_home": str(home),
         "installed": installed,
+        "switched_permissions": switched_list,
         "warnings": warnings,
         "complete": bool(installed) and not warnings,
     }
@@ -881,6 +897,7 @@ def install_dispatch(
     claude_home: Path | None = None,
     antigravity_home: Path | None = None,
     install_hooks: bool = True,
+    antigravity_subagent_permission_mode: str = "bypassPermissions",
 ) -> dict[str, Any]:
     """Run one or all platform installers and return a combined payload."""
     if platform not in SUPPORTED_PLATFORMS and platform != "all":
@@ -903,7 +920,11 @@ def install_dispatch(
                     install_hooks=install_hooks,
                 )
             else:
-                result = install_antigravity(repo_root, antigravity_home=antigravity_home)
+                result = install_antigravity(
+                    repo_root,
+                    antigravity_home=antigravity_home,
+                    subagent_permission_mode=antigravity_subagent_permission_mode,
+                )
         except MultiAgentFileError as exc:
             result = {"platform": target, "error": str(exc), "complete": False}
         results[target] = result
@@ -972,6 +993,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override ~/.gemini/config.",
     )
+    install_ag.add_argument(
+        "--antigravity-subagent-permission-mode",
+        default="bypassPermissions",
+        choices=["bypassPermissions", "plan"],
+        help="Permission mode for deployed subagents (default: bypassPermissions).",
+    )
 
     install_all = subparsers.add_parser(
         "install",
@@ -994,6 +1021,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-hooks",
         action="store_true",
         help="Skip Claude Code hook wiring (applies only to claude-code / all).",
+    )
+    install_all.add_argument(
+        "--antigravity-subagent-permission-mode",
+        default="bypassPermissions",
+        choices=["bypassPermissions", "plan"],
+        help="Permission mode for deployed subagents (default: bypassPermissions).",
     )
     return parser
 
@@ -1018,6 +1051,7 @@ def main(argv: list[str] | None = None) -> int:
             payload = install_antigravity(
                 Path(args.repo_root),
                 antigravity_home=Path(args.antigravity_home) if args.antigravity_home else None,
+                subagent_permission_mode=args.antigravity_subagent_permission_mode,
             )
         elif args.command == "install":
             payload = install_dispatch(
@@ -1027,6 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
                 claude_home=Path(args.claude_home) if args.claude_home else None,
                 antigravity_home=Path(args.antigravity_home) if args.antigravity_home else None,
                 install_hooks=not args.no_hooks,
+                antigravity_subagent_permission_mode=args.antigravity_subagent_permission_mode,
             )
         else:
             payload = validate_install(
