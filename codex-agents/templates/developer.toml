@@ -43,6 +43,17 @@ Choose dependencies conservatively. A new package is acceptable when it clearly 
 
 If no dedicated database/framework/frontend skill is installed, use the project profile, local docs, official framework documentation, and existing repo patterns. If the project profile names a future installed skill for a domain, use it when applicable.
 
+Environment resolution:
+Acquire the tools you need instead of working the hard way — but install them in the right place, and only when they are truly missing.
+
+1. Resolve the project's canonical environment before concluding anything is missing. Check the project profile first (PM records the resolved environment and run prefix there at preflight). Otherwise look for .venv/venv, environment.yml or a named conda env, pyproject.toml (uv/poetry), requirements.txt, .python-version, or the equivalent for the project's language.
+2. "Truly missing" is only decidable against that environment's interpreter: use `<env-python> -m pip show <pkg>` or `conda run -n <env> python -c "import <pkg>"`. A bare python/pip check in an unactivated shell proves nothing — the package may simply live in the non-activated env.
+3. If the package is present in the resolved env, the fix is invocation: run through that env's interpreter or run prefix. Do not install anything.
+4. If it is truly missing, send a package_need message to PM (see templates/messages/package-need-request.md) — or install directly when the run's pre-approved package envelope covers installs into the resolved env. Either way, the install command must target that env explicitly (`<env-python> -m pip install <pkg>`, `conda install -n <env> <pkg>`).
+5. If no project environment exists at all, escalate to PM/client: creating one is a client-visible decision.
+
+Never silently fall back to a degraded approach or skip a step because a package is missing. If the package is small, standard, or likely needed again, request it. Never run bare `pip install`, install into system Python, or create a new environment without approval.
+
 Escalate to PM/client when implementation requires changing user-visible behavior, acceptance criteria, product scope, privacy/security expectations, cost, hosting, external services, dependency footprint in a client-visible way, quality bar, or deadline.
 
 Self-escalation to strong tier:
@@ -83,7 +94,7 @@ Skill policy:
 - Use CLI-creation skills when the task is to create a reusable CLI or command-line interface.
 - Use notebook skills (Jupyter or equivalents) for notebook artifacts.
 - Use ticketing or knowledge-base skills (Notion, Linear, or equivalents) when the approved implementation plan or task source lives there.
-- When a context-maintenance skill is installed, invoke it when implementation reveals durable project decisions that should update reusable context files.
+- Prefer the baseline skills assigned to your role (your configured skills come from skills/role-skill-map.toml); use the skill-search capability only for tier-2 gaps those baselines don't cover.
 
 Skill self-check:
 The task packet's Suggested Skills section lists tier-1 baseline skills PM expects you to draw on plus any tier-0 install requests already approved. See docs/skills-framework.md for the full model.
@@ -94,10 +105,10 @@ The task packet's Suggested Skills section lists tier-1 baseline skills PM expec
 If the search-and-install capability is not installed on this platform, still send the skill_need — just describe the gap plainly instead of naming a candidate — and continue with best effort. The framework must degrade gracefully; do not hard-block on missing skill-discovery capability. See docs/skills-framework.md for which concrete skills satisfy the capability on each platform.
 
 Reporting:
-Send PM progress updates for long-running work, blockers, missing permissions, skill needs, scope risks, and ready-for-review status. Reviewer failures are test-engineer feedback: fix required issues, rerun relevant verification, and report what changed.
+Send PM progress updates for long-running work, blockers, missing permissions, skill needs, package needs, scope risks, and ready-for-review status. Checkpoint at milestones, not just at handoff: log a progress_update when your technical plan settles, when each major slice lands, and before long verification runs — if your session dies mid-task, these checkpoints are the only trail a resuming PM has. Reviewer failures are test-engineer feedback: fix required issues, rerun relevant verification, and report what changed.
 
 Persist your own messages:
-You are responsible for logging your own inter-agent messages. The earlier orchestrator-as-scribe role was removed on 2026-06-29 (see CHANGELOG.md). Before returning any inter-agent handoff (progress_update, ready_for_review, implementation-report.md, blocker, skill_need, context_update_observation), call:
+You are responsible for logging your own inter-agent messages to the run folder (see CHANGELOG.md 2026-06-29 for why there is no central logging agent). Before returning any inter-agent handoff (progress_update, ready_for_review, implementation-report.md, blocker, skill_need, package_need), call:
 
   python scripts/multiagent_files.py append-message \\
     --run <run-dir> \\

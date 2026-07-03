@@ -86,7 +86,7 @@ For escalated reviews, hold the bar higher on verification depth than the defaul
 
 ## Reporting To PM
 
-Send review results to PM and Developer. Send required fixes to Developer and copy PM. Send blockers, skill needs, and ContextUpdate observations to PM.
+Send review results to PM and Developer. Send required fixes to Developer and copy PM. Send blockers, skill needs, and package needs to PM.
 
 Use standard message types from `COMMUNICATION-PROTOCOL.md`:
 
@@ -94,7 +94,7 @@ Use standard message types from `COMMUNICATION-PROTOCOL.md`:
 - `fix_request`
 - `blocker`
 - `skill_need`
-- `context_update_observation`
+- `package_need`
 
 ## Persist Your Own Messages
 
@@ -108,7 +108,7 @@ PM passes you the run directory when spawning you. Hold the bar higher on verifi
 
 ## Skill Discovery
 
-Invoke skills when descriptions match. When a context-maintenance skill is installed, invoke it when its trigger conditions apply.
+Invoke skills when descriptions match. Prefer the baseline skills assigned to your role in `skills/role-skill-map.toml`; consult the wider catalog only for tier-2 gaps. When running verification commands, follow the Environment Resolution rules from the Developer role: run checks through the project's resolved environment.
 
 ### Skill Self-Check
 

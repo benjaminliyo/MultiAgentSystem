@@ -144,7 +144,7 @@ PM reviews the final implementation report, review report, and outstanding risks
 
 ### pm_closeout -> done
 
-Move here when PM has produced a client-facing closeout and any needed documentation or context-maintenance checks are complete.
+Move here when PM has produced a client-facing closeout and any needed documentation updates are complete. Closeout ends with `close-run` (`python scripts/multiagent_files.py close-run --root <project-root>`), which sets the terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `active-run.json`.
 
 ## Artifact Naming
 
@@ -207,7 +207,7 @@ Required handoff messages:
 - Developer to PM and Reviewer: `ready_for_review`
 - Reviewer to PM and Developer: `review_result`
 - Reviewer to Developer, copied to PM: `fix_request`
-- Any agent to PM: `blocker`, `skill_need`, `context_update_observation`
+- Any agent to PM: `blocker`, `skill_need`, `package_need`
 
 Use the efficient `reviewer` agent for routine reviews. Use `reviewer-strong` when a review has large-diff, security, data-loss, concurrency, migration, dependency, authentication/authorization, failed-loop, or low-confidence escalation risk.
 
@@ -220,11 +220,9 @@ Required persistence:
 - PM records available agent IDs and closure status in `run-summary.md`.
 - Any agent may save raw inter-agent transcript excerpts in `transcripts/` when available; this is best-effort.
 
-## Skill Discovery And ContextUpdate
+## Skill And Package Discovery
 
-All agents should have `skill-installer` available so they can search for missing capabilities when work requires it. Installation decisions should be reported to PM unless the human has already approved them.
-
-When a context-maintenance skill is available, agents should invoke it when its trigger conditions apply.
+All agents should have a skill-search-and-install capability available so they can search for missing capabilities when work requires it. Installation decisions should be reported to PM unless the human has already approved them. See `docs/skills-framework.md` for the tier model, the role-skill map, and the package-need flow.
 
 ## Permission Guidance
 

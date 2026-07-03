@@ -16,16 +16,16 @@ PM owns product judgment AND mechanical routing. The earlier dedicated `multiage
 ## Launch Sequence
 
 1. **Adopt PM's role.** Read `~/.claude/agents/pm.md` (or the canonical copy). Follow it for the rest of the run.
-2. **Scoped Autonomy preflight.** Ask the client once whether the run may use workspace/project read-write access for PM, Developer, and Reviewer, and whether commands inside the workspace may run without per-call confirmation. Note the decision; you'll save it in the run-summary.
-3. **Create the run folder.**
+2. **Scoped Autonomy preflight.** Ask the client once whether the run may use workspace/project read-write access for PM, Developer, and Reviewer, and whether commands inside the workspace may run without per-call confirmation. Also resolve the project's canonical environment, record it in `.multiagent/project-profile.md`, and ask the one package question (may workers install into that env without per-item approval?). Note the decisions; you'll save them in the run-summary.
+3. **Create the run folder and activate PM mode.**
    ```bash
    python scripts/multiagent_files.py prepare-run \
      --root <project-root> \
      --task "<short task name>"
    ```
-   Save the resulting run path; every `append-message` call needs it.
+   Besides the run folder, this writes `.multiagent/active-run.json` and inserts a PM-mode marker block into the project's context files — that is what keeps the PM role alive through long sessions, compaction, and interruptions (the `user-prompt-pm-mode` hook reads it every turn). Save the resulting run path; every `append-message` call needs it.
 4. **Log the entry messages.** Append the client request summary and the Scoped Autonomy decision via `append-message --from-role client --to-role pm --type decision_record ...`.
-5. **Mirror the state machine.** Use `TaskCreate` to create one task per workflow state: `pm_discovery`, `awaiting_client_approval`, `developer_implementation`, `reviewer_checking`, `developer_fixing`, `pm_closeout`. Update `in_progress` / `completed` as routing moves through states. Tier escalations and failed reviews are self-loops.
+5. **Mirror the state machine.** Use `TaskCreate` to create one task per workflow state: `pm_discovery`, `awaiting_client_approval`, `developer_implementation`, `reviewer_checking`, `developer_fixing`, `pm_closeout`. Update `in_progress` / `completed` as routing moves through states, and run `python scripts/multiagent_files.py set-state --run <run-dir> --state <state>` on every transition so the durable state stays current. Tier escalations and failed reviews are self-loops.
 6. **Start PM work.** Clarify the client request, draft the task packet, and use `EnterPlanMode` to present it for approval.
 
 ## Plan-Mode Contract
@@ -74,7 +74,22 @@ When Reviewer returns PASS:
 3. Mark the run complete in `run-summary.md` with final agent IDs.
 4. Mark the final `TaskCreate` task `completed`.
 5. Close idle worker agents if the runtime allows it.
-6. If a context-maintenance skill is installed, consider running it when durable project decisions surfaced during the run.
+6. Close the run: `python scripts/multiagent_files.py close-run --root <project-root>`. This sets the terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `active-run.json`.
+
+## Deactivation (`/multiagent off`)
+
+When the client says to stop or turn off the multiagent workflow, run `python scripts/multiagent_files.py close-run --root <project-root>`. This sets the run's terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `.multiagent/active-run.json` — the per-turn PM reminder stops immediately. Confirm the deactivation and continue as a normal session.
+
+## Resume (`/multiagent resume [run-name]`)
+
+After an interruption (usage limit, crash, closed session) — or when the client names a previous run — resume rather than restart:
+
+1. Pick the target run: the named `.multiagent/runs/<run-name>/` if given; otherwise `.multiagent/active-run.json`; otherwise the newest folder under `.multiagent/runs/`.
+2. If PM mode is not active for that run, re-activate it: `python scripts/multiagent_files.py activate-run --root <project-root> --run <run-dir>`. This restores `active-run.json` and the marker blocks, and works on closed runs too — run `set-state` to a working state when deliberately reopening a closed run.
+3. Read `run-summary.md` and the tail of `messages.jsonl` (plus `transcripts/subagent-events.jsonl` if present) to reconstruct what happened.
+4. Re-adopt PM's role, report the reconstructed state to the client, and continue from the recorded state. Do not redo work the message log shows as completed.
+
+The marker block in the project's context files means a fresh session already knows a run is active — offer to resume proactively when you see it.
 
 ## Memory For Cross-Session Client Context
 

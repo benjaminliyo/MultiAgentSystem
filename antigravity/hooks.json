@@ -1,0 +1,50 @@
+{
+  "multiagent-workflow": {
+    "PreInvocation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{USER_PROMPT_JSON_CMD}}",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{SUBAGENT_LOG_CMD}}",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{SUBAGENT_LOG_CMD}}",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{STOP_CMD}}",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

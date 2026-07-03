@@ -12,6 +12,44 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 
 ---
 
+## 2026-07-02 — Sticky PM mode, resource acquisition (packages + role-skill map), local overlay, durable runs
+
+### Decision
+
+Four related design changes shipped together, all motivated by real-run failures:
+
+1. **Sticky PM role + off switch.** The interactive workflow's PM adopts its role by reading `pm.md` as a tool result — the lowest-priority context tier, which fades over long sessions (workers never had this problem: their role file is their subagent system prompt). Now `prepare-run` *activates PM mode*: it writes `.multiagent/active-run.json` and inserts a `<!-- multiagent:begin/end -->` marker block into the project's context files (CLAUDE.md/AGENTS.md/GEMINI.md — system-prompt priority, survives compaction and fresh sessions). A new `user-prompt-pm-mode` hook reinjects a compact PM reminder with the live workflow state on every prompt while a run is active. New runtime subcommands: `set-state` (updates `run-summary.md` + `active-run.json` on every workflow transition) and `close-run` (terminal state, marker removal, `active-run.json` deletion — deletes context files that held nothing but our marker). `/multiagent off` deactivates; `/multiagent resume` reconstructs an interrupted run from the run folder. Codex gets the same hooks via a rendered project-level `.codex/hooks.json` (`prepare-run --project-hooks codex`); Antigravity wiring is manual via the `antigravity/hooks.json` template.
+
+2. **Resource acquisition: packages + per-role skill scoping.** New "Environment Resolution" rules in the Developer roles: resolve the project's canonical env (project profile first, then `.venv`/conda/uv markers) before concluding a package is missing; verify against that env's interpreter; fix invocation when the package exists; send the new `package_need` message (or install within the run's pre-approved *package envelope*) when truly missing — never silent fallback, never bare `pip install`. PM's preflight now records the resolved env in the project profile and asks the client one package-envelope question. New `skills/role-skill-map.toml` is the editable per-role default skill list: Codex installer enforces it as a hard allowlist per generated TOML (replacing append-everything), Claude Code installer injects matched installed skills into the deployed agents' `skills:` frontmatter (verified: that field *preloads* full content but does not restrict discovery — which tier 2 depends on), Antigravity stays instruction-level.
+
+3. **Personal content moved to a gitignored local overlay.** All context-maintenance skill references and the `context_update_observation` message type were personal setup and are stripped from canonical files. The installer now merges `local/overlays/roles/<role>.md` into the *installed* agent copies (appended to md bodies; inserted into the Codex TOML's `developer_instructions`). The validator check flipped: it used to warn when a canonical body *didn't* mention context-maintenance; it now warns when one *does* (publish cleanliness).
+
+4. **Durable runs (mechanical logging + checkpoints + resume-any-run).** A real run died at a usage limit mid-implementation and lost worker progress; PM→Developer messages hadn't been saved because logging was instruction-following (and the instructions fade — see item 1). New `subagent-log.py` hook (`SubagentStart`/`SubagentStop`, which fire in the main session — main-session `PostToolUse` does not fire for subagent completion) mechanically appends every spawn/finish to `transcripts/subagent-events.jsonl` and the message log (`subagent_start`/`subagent_stop` types). Wired on all three platforms: Claude Code (settings.json), Codex (rendered `.codex/hooks.json` — Codex confirmed the events run `type: "command"` handlers), and Antigravity (rendered `.agents/hooks.json` — Antigravity has no SubagentStart/SubagentStop, so the logger hooks `PreToolUse`/`PostToolUse` with matcher `invoke_subagent`, the tool that spawns subagents; agent types are extracted from `tool_input.Subagents[*].TypeName`). Antigravity's per-turn PM reminder rides on `PreInvocation`, whose confirmed contract requires a flat JSON object on stdout (`additionalContext` is appended to the LLM context; plain text crashes the framework's JSON parser) — hence the JSON-emitting `user-prompt-pm-mode.py` variant alongside the plain-text `.ps1`/`.sh` used on Claude Code/Codex. Whether Antigravity applies the same JSON contract to `Stop` hook output is unconfirmed; documented in `antigravity/INSTALL.md`. Worker roles now require `progress_update` checkpoints at milestones, not just at handoff. `/multiagent resume [run-name]` resumes not only the interrupted run but any previous run: the new `activate-run` subcommand restores `active-run.json` + marker blocks for an existing run folder (closed runs included, with a warning to `set-state` before continuing). Stale "orchestrator" references in platform agent files were fixed to PM while editing.
+
+Also: a consolidation pass on the role files (dedup, orchestrator-removal history reduced to one CHANGELOG pointer per file) so net length stayed roughly flat despite the new sections.
+
+### Why
+
+The client hit all four failure modes in real use (2026-07-02 session): PM forgot its role mid-session when `/multiagent` was invoked without an initial request; an agent silently skipped a plot-rendering step because a package was "missing" (it lived in a non-activated env); personal skill references were about to leak into the public GitHub repo; and a usage-limit death lost all subagent progress. The connecting principle: anything the workflow *requires* should be mechanical (hooks, marker blocks, generated configs), not instruction-following — instructions fade, hooks don't.
+
+### Files affected
+
+- `scripts/multiagent_files.py` — active-run lifecycle, marker upsert/removal, `set-state`, `close-run`, `--project-hooks` rendering.
+- `scripts/install.py` — role-skill map loading + Codex per-role filtering, Claude `skills:` injection + `discover_claude_skills`, overlay merge for all three installers, five-hook wiring, `_validate_shared_repo_files`, flipped context-maintenance check.
+- `claude-code/hooks/user-prompt-pm-mode.{ps1,sh}`, `claude-code/hooks/subagent-log.py` (new); `claude-code/settings.example.json` (five hook events).
+- `codex/hooks.json`, `antigravity/hooks.json` (new templates); `skills/role-skill-map.toml` (new); `templates/messages/package-need-request.md` (new); `templates/messages/context-update-observation.md` moved to `local/overlays/templates/`.
+- `roles/*.md`, `claude-code/agents/*.md`, `antigravity/agents/*.md`, `codex-agents/templates/*.toml` — new sections propagated; personal content stripped.
+- `claude-code/commands/multiagent.md`, both platform `SKILL.md` files, `codex-skill/.../SKILL.md`, `launch/*.md` — off/resume, activation, preflight, closeout updates.
+- `COMMUNICATION-PROTOCOL.md`, `ORCHESTRATION.md`, `TEAM-WORKFLOW.md`, `README.md`, `docs/skills-framework.md`, `CLAUDE.md`/`AGENTS.md`, `.gitignore`.
+- `tests/test_multiagent_files.py` — 18 new tests (51 total).
+
+### Reversal triggers
+
+- If per-turn hook reinjection makes sessions noisy or conflicts with a future Claude Code role feature, drop the hook and rely on the marker block alone.
+- If Codex's hard allowlist causes recurring "worker lacked a needed skill" failures despite the `[always]` escape hatch, revert `install_codex` to append-everything (one function).
+- If a platform ships native per-agent skill restriction on Claude Code, replace the soft `skills:` preload approach with it.
+- If the package envelope proves too permissive in practice (unwanted installs), route all `package_need` to the client unconditionally — the message flow already supports it.
+
 ## 2026-07-02 — Split scripts/multiagent_files.py into runtime + install modules
 
 ### Decision

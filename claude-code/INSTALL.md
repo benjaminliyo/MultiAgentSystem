@@ -31,16 +31,20 @@ That's it. Restart Claude Code and `/multiagent <task>` works in any project.
 | `claude-code/agents/*.md` (5 files)            | `~/.claude/agents/`                              |
 | `claude-code/skill/multiagent-workflow/`       | `~/.claude/skills/multiagent-workflow/`          |
 | `claude-code/commands/multiagent.md`           | `~/.claude/commands/multiagent.md`               |
-| `claude-code/hooks/*.{ps1,sh}` (via settings)  | wired into `~/.claude/settings.json`             |
+| `claude-code/hooks/*` (via settings)           | wired into `~/.claude/settings.json`             |
+
+The installer also consults `skills/role-skill-map.toml`: skills installed under `~/.claude/skills/` that match a role's candidates are written into that installed agent's `skills:` frontmatter (preloaded at spawn). And if a gitignored `local/overlays/roles/<role>.md` exists, its content is appended to the installed agent body — personal additions without touching canonical files.
 
 The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`. PM is the main-thread agent and absorbs mechanical routing. See `CHANGELOG.md` (2026-06-29) for why there's no `multiagent-orchestrator`.
 
-The hook wiring:
+The hook wiring (five events, all silent outside active multiagent runs):
 
-- **SessionStart** hook loads `<cwd>/.multiagent/project-profile.md` if present, so PM sees the project profile automatically.
-- **Stop** hook warns if a `.multiagent/runs/<run>/run-summary.md` has `state:` not set to done/closed/completed.
+- **SessionStart** loads `<cwd>/.multiagent/project-profile.md` if present, so PM sees the project profile automatically.
+- **UserPromptSubmit** reinjects a compact PM-mode reminder (role + current workflow state from `.multiagent/active-run.json`) on every prompt while a run is active — this is what keeps the PM role from fading over long sessions.
+- **SubagentStart / SubagentStop** mechanically log every worker spawn/finish to the run folder (`transcripts/subagent-events.jsonl` + the message log) via `claude-code/hooks/subagent-log.py`.
+- **Stop** warns if a `.multiagent/runs/<run>/run-summary.md` has `state:` not set to done/closed/completed.
 
-The installer picks the `.ps1` variants on Windows and the `.sh` variants elsewhere. If you already have a `~/.claude/settings.json`, the installer merges into it: existing entries pointing at the same hook script get their command upgraded; unrelated hooks you added are preserved.
+The installer picks the `.ps1` variants on Windows and the `.sh` variants elsewhere (`subagent-log.py` runs via `python` everywhere). If you already have a `~/.claude/settings.json`, the installer merges into it: existing entries pointing at the same hook script get their command upgraded; unrelated hooks you added are preserved.
 
 `scripts/multiagent_files.py` stays in the repo (the workflow invokes it by path for run-folder setup and message persistence). `git pull` is enough to update it.
 

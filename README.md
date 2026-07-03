@@ -61,7 +61,12 @@ D:\Projects\MultiAgentSystem\
     review-report.md
     messages\*.md
   scripts\
-    multiagent_files.py              # run-folder + message helper (both platforms)
+    multiagent_files.py              # runtime helper: run folders, messages, PM-mode lifecycle
+  skills\
+    role-skill-map.toml              # editable per-role skill defaults (installers apply it)
+  codex\
+    hooks.json                       # Codex project-hook template (rendered by prepare-run)
+  local\                             # gitignored personal overlay (merged into installed agents)
   codex-agents\                      # Codex custom-agent TOMLs
     pm.toml
     developer.toml
@@ -106,12 +111,13 @@ SomeProject\
     project-profile.md
 ```
 
-Each workflow run should also create a durable run folder:
+Each workflow run should also create a durable run folder (via `prepare-run`, which additionally activates PM mode — `active-run.json` plus a marker block in the project's context files that keeps the PM role sticky across long sessions and interruptions):
 
 ```text
 SomeProject\
   .multiagent\
     team-registry.json
+    active-run.json                  # present while a run is active; close-run removes it
     runs\
       YYYY-MM-DD-short-task-name\
         run-summary.md
@@ -266,7 +272,7 @@ A task is done only when:
 - the reviewer returns `PASS`,
 - unresolved risks are documented.
 
-Before closing, agents should consider whether a context-maintenance skill (if installed) applies and, if so, invoke it.
+PM ends the run with `close-run`, which deactivates PM mode (terminal state, marker blocks removed, `active-run.json` deleted).
 
 ## Automation Helper
 
@@ -277,9 +283,12 @@ Two Python entry points, one per concern:
 
 ```powershell
 # Runtime (agents call these during a run):
-python scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
+python scripts\multiagent_files.py prepare-run --root <project-root> --task "<short task name>"   # + activates PM mode; add --project-hooks codex on Codex
 python scripts\multiagent_files.py append-message --run <run-dir> --from-role pm --to-role developer --type task_assignment --title "<title>" --body "<body>"
+python scripts\multiagent_files.py set-state --run <run-dir> --state developer_implementation      # on every workflow transition
 python scripts\multiagent_files.py status --run <run-dir>
+python scripts\multiagent_files.py close-run --root <project-root>                                 # deactivates PM mode (/multiagent off)
+python scripts\multiagent_files.py activate-run --root <project-root> --run <run-dir>              # restore PM mode for any existing run (/multiagent resume <name>)
 
 # Install-time (invoked via the shell wrappers or directly):
 python scripts\install.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform codex
@@ -287,4 +296,4 @@ python scripts\install.py validate-install --repo-root D:\Projects\MultiAgentSys
 python scripts\install.py validate-install --repo-root D:\Projects\MultiAgentSystem --platform antigravity
 ```
 
-Runtime owns file creation, message IDs, JSONL indexing, and role registry defaults. Install owns platform setup, hook wiring, and install validation. Both share constants and small helpers via `scripts/_common.py`. Agents still own product, implementation, and review judgment. Workers self-log their own inter-agent messages via `append-message`; PM additionally logs task assignments, escalation events, and closeouts.
+Runtime owns file creation, message IDs, JSONL indexing, PM-mode activation state, and role registry defaults. Install owns platform setup, hook wiring, and install validation. Both share constants and small helpers via `scripts/_common.py`. Agents still own product, implementation, and review judgment. Workers self-log their own inter-agent messages via `append-message`; PM additionally logs task assignments, escalation events, and closeouts.

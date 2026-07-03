@@ -1,8 +1,8 @@
 {
-  "_comment_purpose": "Example ~/.claude/settings.json wiring for the MultiAgentSystem hooks. Both hooks are opt-in. Copy or merge into your real settings.json; do not point Claude Code at this example file directly. Remove either hook entry you do not want.",
+  "_comment_purpose": "Example ~/.claude/settings.json wiring for the MultiAgentSystem hooks. All hooks are opt-in and exit silently outside active multiagent runs. Copy or merge into your real settings.json; do not point Claude Code at this example file directly. Remove any hook entry you do not want.",
   "_comment_paths": "Adjust the absolute paths to your MultiAgentSystem checkout. Default example assumes D:/Projects/MultiAgentSystem (Windows).",
-  "_comment_bash_alternative": "For WSL / Git Bash / macOS / Linux, replace each `command` value with: bash /path/to/MultiAgentSystem/claude-code/hooks/<hook-name>.sh",
-  "_comment_schema_note": "Hook schema follows Claude Code's settings.json format. If your Claude Code version uses a different shape (e.g. flat `command` key instead of nested `hooks` array), adapt accordingly. Verify with `/config` or Claude Code's settings docs after copying.",
+  "_comment_bash_alternative": "For WSL / Git Bash / macOS / Linux, replace each PowerShell `command` value with: bash /path/to/MultiAgentSystem/claude-code/hooks/<hook-name>.sh (subagent-log stays `python .../subagent-log.py` everywhere).",
+  "_comment_hooks": "SessionStart: inject the project profile. UserPromptSubmit: reinject the PM role every turn while a run is active (keeps the role from fading in long sessions). SubagentStart/SubagentStop: mechanically log worker spawns/finishes to the run folder. Stop: warn about unclosed runs.",
   "hooks": {
     "SessionStart": [
       {
@@ -10,6 +10,36 @@
           {
             "type": "command",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:/Projects/MultiAgentSystem/claude-code/hooks/session-start-load-profile.ps1\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:/Projects/MultiAgentSystem/claude-code/hooks/user-prompt-pm-mode.ps1\""
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"D:/Projects/MultiAgentSystem/claude-code/hooks/subagent-log.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"D:/Projects/MultiAgentSystem/claude-code/hooks/subagent-log.py\""
           }
         ]
       }

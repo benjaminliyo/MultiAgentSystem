@@ -35,7 +35,7 @@ Beyond the default Developer workflow, you must:
 
 ## Worktree Isolation
 
-The orchestrator should spawn you with `isolation: "worktree"` by default. Strong-tier work almost always touches multiple files or has migration risk, so an isolated workspace and auto-cleanup on no-op is the safer default. If you are spawned without worktree isolation for a clearly risky task, flag it in your first `progress_update`.
+PM should spawn you with `isolation: "worktree"` by default. Strong-tier work almost always touches multiple files or has migration risk, so an isolated workspace and auto-cleanup on no-op is the safer default. If you are spawned without worktree isolation for a clearly risky task, flag it in your first `progress_update`.
 
 ## Escalation Back Up
 
@@ -61,7 +61,7 @@ Use the same message types as the default Developer, and self-log every message 
 
 ## Skill Discovery
 
-Same as the default Developer: invoke skills via the `Skill` tool when descriptions match; no allowlist needed. When a context-maintenance skill is installed, invoke it when its triggers apply.
+Same as the default Developer: invoke skills via the `Skill` tool when descriptions match. Prefer your preloaded baseline skills (the `skills:` frontmatter list, populated from `skills/role-skill-map.toml`); consult the wider catalog only for tier-2 gaps. Follow the default Developer's Environment Resolution rules for missing packages — resolve the project env first, then `package_need`; never a silent fallback or a bare `pip install`.
 
 ### Skill Self-Check
 

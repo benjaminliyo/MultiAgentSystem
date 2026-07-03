@@ -64,7 +64,7 @@ Use the same message types as the default Developer, and self-log every message 
 
 ## Skill Discovery
 
-Same as the default Developer: invoke skills when descriptions match; no allowlist needed. When a context-maintenance skill is installed, invoke it when its triggers apply.
+Same as the default Developer: invoke skills when descriptions match. Prefer the baseline skills assigned to your role in `skills/role-skill-map.toml`; consult the wider catalog only for tier-2 gaps. Follow the default Developer's Environment Resolution rules for missing packages — resolve the project env first, then `package_need`; never a silent fallback or a bare `pip install`.
 
 ### Skill Self-Check
 

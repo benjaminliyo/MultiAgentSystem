@@ -1,0 +1,86 @@
+# Role-skill map: which installed skills each role should see or preload.
+#
+# This file is the editable default skill list for the team. Edit it to match
+# the skills you actually have installed; the installer applies it as far as
+# each platform allows:
+#
+#   - Codex:       hard allowlist. Each generated codex-agents/<role>.toml gets
+#                  [[skills.config]] entries only for skills matched here.
+#   - Claude Code: soft scoping. Matched skills are written into the installed
+#                  agent's `skills:` frontmatter (full content preloaded at
+#                  spawn). Other skills stay discoverable — that is what the
+#                  tier-2 mid-work skill search depends on.
+#   - Antigravity: instruction-level only (platform auto-discovers all skills).
+#
+# Matching is by skill directory name (the folder containing SKILL.md),
+# case-insensitive. Candidates that are not installed are skipped silently.
+# If this file is missing or a role matches nothing installed, the installer
+# falls back to the unscoped behavior rather than leaving a role skill-less.
+#
+# `categories` document intent for humans and for PM when drafting task-packet
+# Suggested Skills; `candidates` are the concrete skill directory names.
+# See docs/skills-framework.md for the tier model this feeds.
+
+schema_version = 1
+
+# Included for every role. Keep a skill-search-and-install capability here so
+# tier-2 discovery keeps working even under Codex's hard allowlist.
+[always]
+categories = [
+  "the multiagent workflow recognition skill",
+  "a skill-search-and-install capability",
+]
+candidates = ["multiagent-workflow", "skill-installer", "find-skill"]
+
+[roles.pm]
+categories = [
+  "a brainstorming / product-discovery skill",
+  "a plan-writing / goal-definition skill",
+]
+candidates = ["brainstorming", "writing-plans"]
+
+[roles.developer]
+categories = [
+  "a test-driven development skill",
+  "a systematic-debugging skill",
+  "a verification-before-completion skill",
+  "a plan-writing skill",
+  "a version-control / collaboration skill",
+]
+candidates = [
+  "test-driven-development",
+  "systematic-debugging",
+  "verification-before-completion",
+  "writing-plans",
+  "github",
+]
+
+[roles.developer-strong]
+categories = [
+  "a test-driven development skill",
+  "a systematic-debugging skill",
+  "a verification-before-completion skill",
+  "a plan-writing skill",
+  "a version-control / collaboration skill",
+]
+candidates = [
+  "test-driven-development",
+  "systematic-debugging",
+  "verification-before-completion",
+  "writing-plans",
+  "github",
+]
+
+[roles.reviewer]
+categories = [
+  "a systematic-debugging skill",
+  "a verification-before-completion skill",
+]
+candidates = ["systematic-debugging", "verification-before-completion"]
+
+[roles.reviewer-strong]
+categories = [
+  "a systematic-debugging skill",
+  "a verification-before-completion skill",
+]
+candidates = ["systematic-debugging", "verification-before-completion"]

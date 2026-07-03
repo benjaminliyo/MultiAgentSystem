@@ -72,6 +72,18 @@ Prefer existing project patterns over new architecture. Add abstractions only wh
 
 Choose dependencies conservatively. A new package is acceptable when it clearly improves correctness, maintainability, or domain fit, but you must escalate if it changes product constraints, install burden, security posture, licensing expectations, or long-term maintenance cost.
 
+## Environment Resolution
+
+Acquire the tools you need instead of working the hard way — but install them in the right place, and only when they are truly missing.
+
+1. **Resolve the project's canonical environment before concluding anything is missing.** Check the project profile first (PM records the resolved environment and run prefix there at preflight). Otherwise look for `.venv`/`venv`, `environment.yml` or a named conda env, `pyproject.toml` (uv/poetry), `requirements.txt`, `.python-version`, or the equivalent for the project's language.
+2. **"Truly missing" is only decidable against that environment's interpreter.** Use `<env-python> -m pip show <pkg>` or `conda run -n <env> python -c "import <pkg>"`. A bare `python`/`pip` check in an unactivated shell proves nothing — the package may simply live in the non-activated env.
+3. **If the package is present in the resolved env**, the fix is invocation: run through that env's interpreter or run prefix. Do not install anything.
+4. **If it is truly missing**, send a `package_need` message to PM (see `templates/messages/package-need-request.md`) — or install directly when the run's pre-approved package envelope covers installs into the resolved env. Either way, the install command must target that env explicitly (`<env-python> -m pip install <pkg>`, `conda install -n <env> <pkg>`).
+5. **If no project environment exists at all**, escalate to PM/client: creating one is a client-visible decision.
+
+Never silently fall back to a degraded approach or skip a step because a package is missing. If the package is small, standard, or likely needed again, request it. The `package_need` message is the required alternative to both silent installs and silent workarounds.
+
 ## Escalation Rules
 
 Stop and return to PM/client when implementation requires changing:
@@ -119,13 +131,15 @@ Use the standard message types from `COMMUNICATION-PROTOCOL.md`:
 - `ready_for_review`
 - `blocker`
 - `skill_need`
-- `context_update_observation`
+- `package_need`
+
+**Checkpoint at milestones, not just at handoff.** Log a `progress_update` when your technical plan settles, when each major slice lands, and before long verification runs. If your session dies mid-task (usage limit, crash), these checkpoints are the only trail a resuming PM has — the ready-for-review message alone is not enough.
 
 Reviewer failures should be treated like test-engineer feedback. Fix required issues, report what changed, and rerun relevant verification.
 
 ## Persist Your Own Messages
 
-You are responsible for logging your own inter-agent messages. Before returning any inter-agent handoff (`progress_update`, `ready_for_review`, `implementation-report.md`, `blocker`, `skill_need`, `context_update_observation`), run:
+You are responsible for logging your own inter-agent messages. Before returning any inter-agent handoff (`progress_update`, `ready_for_review`, `implementation-report.md`, `blocker`, `skill_need`, `package_need`), run:
 
 ```powershell
 python scripts/multiagent_files.py append-message --run <run-dir> --from-role developer --to-role <recipient> --type <message-type> --title "<short title>" --body "<inline body or path to structured artifact>"
@@ -135,7 +149,7 @@ PM passes you the run directory when spawning you. If it is missing, infer the m
 
 ## Skill Discovery
 
-When a context-maintenance skill is installed, invoke it when implementation reveals durable project decisions that should be written back to reusable context files (CLAUDE.md, AGENTS.md, project plans, editor rules).
+Prefer the baseline skills assigned to your role in `skills/role-skill-map.toml`; consult the wider skill catalog only when you hit a gap those baselines don't cover (tier 2).
 
 ### Skill Self-Check
 
@@ -208,3 +222,5 @@ In the follow-up implementation report, include:
 - Do not pass product decisions to the Reviewer. Escalate them to the PM/client.
 - Do not close with only an informal chat summary when a saved inter-agent report is required.
 - Do not search large directories inline when `invoke_subagent` with `research` would be cheaper.
+- Do not silently degrade output or skip a step because a package is missing — resolve the environment, then request the install.
+- Do not run bare `pip install`, install into system Python, or create a new environment without approval.

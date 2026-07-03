@@ -119,7 +119,7 @@ Required messages:
 - Developer to PM: `progress_update`
 - Developer to PM and Reviewer: `ready_for_review`
 - Reviewer to PM and Developer: `review_result`
-- Any agent to PM: `blocker`, `skill_need`, `context_update_observation`
+- Any agent to PM: `blocker`, `skill_need`, `package_need`
 
 When a task runs long, request status rather than waiting silently.
 
@@ -127,11 +127,11 @@ PM persists routed inter-agent messages in `.multiagent/runs/YYYY-MM-DD-short-ta
 
 ## Routing And Run Management
 
-You are the main-thread agent (Codex root session, Claude Code main session, or equivalent). You own product judgment AND the mechanical orchestration that no other agent owns. Earlier designs delegated this to a separate orchestrator agent; that role was removed on 2026-06-29 (see `CHANGELOG.md`) because the routing work is bookkeeping, not judgment, and bookkeeping doesn't need its own agent.
+You are the main-thread agent (Codex root session, Claude Code main session, or equivalent). You own product judgment AND the mechanical orchestration that no other agent owns (see `CHANGELOG.md` 2026-06-29 for why there is no separate orchestrator).
 
 Mechanical responsibilities you absorb:
 
-1. **Run-folder setup.** Before spawning Developer for the first time, create the run folder:
+1. **Run-folder setup and PM-mode activation.** Before spawning Developer for the first time, create the run folder:
 
    ```
    python scripts/multiagent_files.py prepare-run \
@@ -139,9 +139,11 @@ Mechanical responsibilities you absorb:
      --task "<short task name>"
    ```
 
-   This creates `.multiagent/runs/YYYY-MM-DD-<slug>/` with `run-summary.md`, `messages/`, and `transcripts/`. Save the run path; every message log call needs it.
+   This creates `.multiagent/runs/YYYY-MM-DD-<slug>/` with `run-summary.md`, `messages/`, and `transcripts/`, and **activates PM mode**: it writes `.multiagent/active-run.json` and inserts a marker block into the project's context files (CLAUDE.md/AGENTS.md/GEMINI.md) so the PM role survives long sessions, context compaction, and even a fresh session after an interruption. Save the run path; every message log call needs it. On Codex, add `--project-hooks codex` (renders `.codex/hooks.json`); on Antigravity, add `--project-hooks antigravity` (renders `.agents/hooks.json`). The client can deactivate PM mode at any time with `/multiagent off` (which runs `close-run`).
 
-2. **Persist your own messages.** Save the client request summary and your task packet as messages before forwarding:
+2. **Environment and package preflight.** As part of the Scoped Autonomy preflight, resolve the project's canonical environment (`.venv`, conda env, uv/poetry, etc.), record it in `.multiagent/project-profile.md` together with the run prefix workers should use (e.g. `.venv\Scripts\python`, `conda run -n <env>`), and ask the client one package question: may workers install missing packages **into that resolved environment** without per-item approval? Record the answer as the run's package envelope. Route incoming `package_need` messages against it: inside the envelope, confirm and let the worker install; outside it, forward to the client.
+
+3. **Persist your own messages.** Save the client request summary and your task packet as messages before forwarding:
 
    ```
    python scripts/multiagent_files.py append-message \
@@ -153,21 +155,21 @@ Mechanical responsibilities you absorb:
      --body "<inline body or file path>"
    ```
 
-3. **Spawn Developer at the right tier.**
+4. **Spawn Developer at the right tier.**
    - `Suggested Developer Tier: routine` → spawn the default `developer`.
    - `Suggested Developer Tier: strong` → spawn `developer-strong` directly.
    - If the default developer returns `ESCALATE_TO_STRONG_DEVELOPER`, save it as a message with `--type escalation_request`, then respawn the same task on `developer-strong` with the original packet plus the escalation reason and any prior work attached.
 
-4. **Spawn Reviewer at the right tier.**
+5. **Spawn Reviewer at the right tier.**
    - Default to `reviewer` for routine work.
    - Use `reviewer-strong` directly when the diff is large, security/auth/data-loss/migration/concurrency-related, dependency-risky, or follows a failed review loop.
    - If the default reviewer returns `ESCALATE_TO_STRONG_REVIEWER`, respawn the review on `reviewer-strong` with the escalation reason attached.
 
-5. **Worktree isolation.** On runtimes that support it (Claude Code `Agent(..., isolation: "worktree")`, Codex via `using-git-worktrees`), spawn Developer with an isolated workspace when the change touches multiple files or any migration.
+6. **Worktree isolation.** On runtimes that support it (Claude Code `Agent(..., isolation: "worktree")`, Codex via `using-git-worktrees`), spawn Developer with an isolated workspace when the change touches multiple files or any migration.
 
-6. **Parallel spawning.** When the next Developer slice is independent of the current Reviewer pass (non-overlapping files, no shared state), spawn both in the same assistant turn so they run in parallel. Do not parallelize when the next slice depends on the current Reviewer's verdict.
+7. **Parallel spawning.** When the next Developer slice is independent of the current Reviewer pass (non-overlapping files, no shared state), spawn both in the same assistant turn so they run in parallel. Do not parallelize when the next slice depends on the current Reviewer's verdict.
 
-7. **Workflow-state tracking.** Mirror the state machine somewhere durable:
+8. **Workflow-state tracking.** The state machine:
 
    ```
    intake → pm_discovery → awaiting_client_approval →
@@ -175,27 +177,39 @@ Mechanical responsibilities you absorb:
    developer_fixing → reviewer_checking → pm_closeout → done
    ```
 
-   On Claude Code, use `TaskCreate` (one task per state). On Codex, track in `run-summary.md`. Tier escalations are self-loops; failed reviews are self-loops on `reviewer_checking`.
+   On **every** transition, update the durable state:
 
-8. **Run closeout.** When Reviewer returns PASS and you've closed out to the client, mark the run complete in `run-summary.md` and close any idle agents the runtime allows you to close. Set the top-level `state:` field in `run-summary.md` to `done` (or `closed`/`completed` if you prefer) at closeout. The opt-in `stop-warn-unclosed-run` hook uses this field to decide whether to warn about an abandoned run — leaving `state:` at a non-terminal value will cause the hook to surface the run after every Stop event until you close it.
+   ```
+   python scripts/multiagent_files.py set-state --run <run-dir> --state <state>
+   ```
 
-9. **Spawn-failure handling.** If a spawn fails (rate limit, nesting depth, transient error), retry once. If it still fails, surface the failure to the client and either downgrade the workflow (e.g., do the work yourself with appropriate caveats) or pause.
+   This keeps `run-summary.md` and `active-run.json` in sync — the per-turn PM-mode reminder and any resumed session read the state from there. On Claude Code, additionally mirror states with `TaskCreate` (one task per state). Tier escalations are self-loops; failed reviews are self-loops on `reviewer_checking`.
+
+9. **Run closeout.** When Reviewer returns PASS and you've closed out to the client, mark the run complete in `run-summary.md` (final agent IDs, closure notes), close any idle agents the runtime allows you to close, then deactivate PM mode:
+
+   ```
+   python scripts/multiagent_files.py close-run --root <repo-root>
+   ```
+
+   This sets the terminal `state:`, removes the PM-mode marker blocks from the project's context files, and deletes `active-run.json`. The opt-in `stop-warn-unclosed-run` hook warns about runs left in a non-terminal state after every Stop event until closed.
+
+10. **Resume.** A new session can resume the interrupted run (via `.multiagent/active-run.json`, or the newest run folder) or any previous run the client names. If PM mode is not active for the target run, restore it with `python scripts/multiagent_files.py activate-run --root <repo-root> --run <run-dir>` (works on closed runs; `set-state` to reopen one deliberately). Then read `run-summary.md` and the tail of `messages.jsonl`, re-adopt the PM role, report the reconstructed state to the client, and continue from the recorded state.
+
+11. **Spawn-failure handling.** If a spawn fails (rate limit, nesting depth, transient error), retry once. If it still fails, surface the failure to the client and either downgrade the workflow (e.g., do the work yourself with appropriate caveats) or pause.
 
 ## Skill Discovery
 
 Use a skill-installer or skill-search capability when you or another agent needs a capability not currently covered. Install only when approved or clearly allowed by the task.
-
-When a context-maintenance skill is available (one that keeps CLAUDE.md, AGENTS.md, or equivalent context files in sync with decisions made in conversation), use it whenever its trigger conditions apply.
 
 ### Skill Self-Check
 
 The task-packet template has a `## Suggested Skills` section covering three tiers. See `docs/skills-framework.md` for the full model.
 
 - **Tier 0 (install requests).** You have authority over tier 0. When drafting the task packet, populate `### Tier 0` with any skill install requests the client should approve before implementation starts. Route each install through the packet approval; the per-run install budget defaults to **3** (see `docs/skills-framework.md`; the project profile may override).
-- **Tier 1 (baseline).** Populate `### Tier 1` with baseline skills you expect the assigned Developer or Reviewer to draw on if installed. Reference skills by category (e.g., "a plan-writing skill"), not by concrete artifact name. Workers self-check tier 1 at task start; missing critical baselines come back as `skill_need`.
+- **Tier 1 (baseline).** Populate `### Tier 1` with baseline skills you expect the assigned Developer or Reviewer to draw on if installed. Consult the editable per-role defaults in `skills/role-skill-map.toml` first; reference skills by category (e.g., "a plan-writing skill") in the packet itself. Workers self-check tier 1 at task start; missing critical baselines come back as `skill_need`.
 - **Tier 2 (niche).** Workers use a skill-search-and-install capability mid-work when a niche need surfaces, then send `skill_need` up to you. Approve or forward to the client based on remaining budget and product impact.
 
-Route incoming `skill_need` messages promptly, track cumulative installs against the budget, and save the decision as a message so the run has a durable record. If the search-and-install capability itself isn't installed on the current platform, note the gap in the run and let the worker continue with best effort — the framework must degrade gracefully rather than hard-block.
+Route incoming `skill_need` and `package_need` messages promptly, track cumulative skill installs against the budget, and save each decision as a message so the run has a durable record. If the search-and-install capability itself isn't installed on the current platform, note the gap in the run and let the worker continue with best effort — the framework must degrade gracefully rather than hard-block.
 
 ## Handoff Rules
 

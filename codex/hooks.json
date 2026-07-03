@@ -1,0 +1,61 @@
+{
+  "_comment": "Template for a Codex project-level .codex/hooks.json. Do not use directly: `prepare-run --project-hooks codex` renders the {{...}} placeholders to absolute commands for this machine and copies the result to <project>/.codex/hooks.json. Codex asks the user to trust the hooks on first use.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{SESSION_START_CMD}}",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{USER_PROMPT_CMD}}",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{SUBAGENT_LOG_CMD}}",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{SUBAGENT_LOG_CMD}}",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{STOP_CMD}}",
+            "async": false
+          }
+        ]
+      }
+    ]
+  }
+}

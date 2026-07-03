@@ -16,16 +16,17 @@ PM owns product judgment AND mechanical routing. The spawnable `pm` agent file e
 ## Launch Sequence
 
 1. **Adopt PM's role.** Read `~/.gemini/config/agents/pm.md` (or the canonical copy). Follow it for the rest of the run.
-2. **Scoped Autonomy preflight.** Ask the client once whether the run may use workspace/project read-write access for PM, Developer, and Reviewer, and whether commands inside the workspace may run without per-call confirmation. Note the decision; you'll save it in the run-summary.
+2. **Scoped Autonomy preflight.** Ask the client once whether the run may use workspace/project read-write access for PM, Developer, and Reviewer, and whether commands inside the workspace may run without per-call confirmation. Also resolve the project's canonical environment (`.venv`, conda, uv/poetry), record it in `.multiagent/project-profile.md`, and ask the one package question (may workers install into that env without per-item approval?). Note the decisions; you'll save them in the run-summary.
 3. **Dynamic Subagent Registration (Self-Healing).**
    Check if the subagents `developer`, `developer-strong`, `reviewer`, and `reviewer-strong` are defined in the session. If not, or to ensure they are up to date with their instructions, read their definitions from `~/.gemini/config/agents/<role>.md` or `<workspace-root>/.agents/<role>.md` (or `antigravity/agents/<role>.md` in this repo), parse their YAML frontmatter and body, and call `define_subagent` to register them dynamically in the active session.
-4. **Create the run folder.** Run:
+4. **Create the run folder and activate PM mode.** Run:
    ```powershell
-   python scripts/multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
+   python scripts/multiagent_files.py prepare-run --root <project-root> --task "<short task name>" --project-hooks antigravity
    ```
-   Save the resulting run path; every `append-message` call needs it.
+   Besides the run folder, this writes `.multiagent/active-run.json`, inserts a PM-mode marker block into the project's context files (GEMINI.md/AGENTS.md/CLAUDE.md) — that keeps the PM role alive through long sessions and interruptions — and renders `<project>/.agents/hooks.json` (PM reminder, subagent auto-logging on `invoke_subagent`, unclosed-run warning). Save the resulting run path; every `append-message` call needs it.
 5. **Log the entry messages.** Append the client request summary and the Scoped Autonomy decision via `append-message --from-role client --to-role pm --type decision_record ...`.
-6. **Start PM work.** Clarify the client request, draft the task packet, and present it for approval.
+6. **Track state durably.** On every workflow-state transition, run `python scripts/multiagent_files.py set-state --run <run-dir> --state <state>`.
+7. **Start PM work.** Clarify the client request, draft the task packet, and present it for approval.
 
 ## Plan-Mode/Approval Gate
 
@@ -65,8 +66,12 @@ When Reviewer returns PASS:
 1. Draft the client-facing closeout (concise: what was built, what was verified, residual risks).
 2. Log the closeout message.
 3. Mark the run complete in `run-summary.md` with final agent IDs.
-4. Set the top-level `state:` field in `run-summary.md` to `done`.
-5. If a context-maintenance skill is installed, consider running it when durable project decisions surfaced during the run.
+4. Close the run: `python scripts/multiagent_files.py close-run --root <project-root>`. This sets the terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `active-run.json`.
+
+## Deactivation And Resume
+
+- **Turn off** (`/multiagent off` or "stop the multiagent workflow"): run `close-run` as in Closeout step 4, confirm PM mode is off, and continue as a normal session.
+- **Resume** (`/multiagent resume [run-name]` or after an interruption): pick the target run (named run folder, else `.multiagent/active-run.json`, else the newest `.multiagent/runs/` folder). If PM mode is not active for it, run `python scripts/multiagent_files.py activate-run --root <project-root> --run <run-dir>` to restore `active-run.json` and the marker blocks (works on closed runs; `set-state` to reopen one deliberately). Then read `run-summary.md` and the tail of `messages.jsonl`, re-adopt PM's role, report the reconstructed state to the client, and continue from the recorded state instead of restarting. The marker block in the project's context files tells a fresh session a run is active — offer to resume proactively.
 
 ## Troubleshooting
 

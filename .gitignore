@@ -16,6 +16,11 @@ personal/
 .local/
 docs/private/
 
+# Local overlay: per-role personal additions the installer merges into the
+# INSTALLED copies of the agents (see docs/skills-framework.md "Local Overlay").
+# Canonical files ship clean; local/ never enters version control.
+local/
+
 # Secrets
 .env
 .env.*

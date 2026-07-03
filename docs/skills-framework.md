@@ -1,8 +1,8 @@
 # Skills Framework
 
-Canonical reference for how the multi-agent workflow decides when to install or invoke a skill, who has authority over that decision, and how it degrades when the underlying platform can't help.
+Canonical reference for how the multi-agent workflow decides when to install or invoke a skill or package, who has authority over that decision, and how it degrades when the underlying platform can't help.
 
-The framework is **efficiency + quality**. Without the right niche skill, an agent may iterate many times on a task (e.g., doc formatting, table generation, migration planning) and still not meet the client's expectations. The framework's job is to short-circuit that failure mode by making the "we need a different tool for this" moment visible, cheap to act on, and bounded by a per-run install budget.
+The framework is **efficiency + quality**: the agent should acquire the tools it needs instead of working the hard way. Without the right niche skill, an agent may iterate many times on a task (e.g., doc formatting, table generation, migration planning) and still not meet the client's expectations; without a needed package it may silently fall back to a degraded approach. The framework's job is to short-circuit those failure modes by making the "we need a different tool for this" moment visible, cheap to act on, and bounded by a per-run install budget.
 
 ## Overview
 
@@ -57,6 +57,37 @@ The worker does **not** install a skill on their own authority. They report the 
 
 If no skill-search-and-install capability is installed on the current platform, tier 2 degrades gracefully: the worker reports the gap in a `skill_need` message and continues with best effort. See "Graceful Degradation" below.
 
+## Role-Skill Map (`skills/role-skill-map.toml`)
+
+The editable default skill list for the team. Per role it records skill *categories* (documentation and PM guidance) and concrete *candidates* (installed skill directory names). An `[always]` section lists skills every role gets — keep the search-and-install capability there so tier 2 survives hard allowlists.
+
+The installer applies the map as far as each platform allows:
+
+| Platform     | Enforcement |
+|--------------|-------------|
+| Codex        | **Hard allowlist.** Generated `codex-agents/<role>.toml` gets `[[skills.config]]` entries only for matched skills. Unmapped roles or zero matches fall back to all discovered skills (with a warning) — the map must never leave a role skill-less. |
+| Claude Code  | **Soft scoping.** Matched skills are injected into the installed agent's `skills:` frontmatter, preloading their full content at spawn. The wider catalog stays discoverable — that is intentional; tier-2 discovery depends on it. |
+| Antigravity  | Instruction-level only (auto-discovery, no allowlist surface). |
+
+PM consults the map when populating a packet's `### Tier 1`. Edit the map, re-run the installer, restart the session.
+
+## Packages (`package_need`)
+
+The same acquire-don't-improvise principle applies to packages, with one extra hazard: a package that lives in a non-activated project environment looks identical to a truly missing one, and a naive `pip install` lands in the wrong Python.
+
+Flow (full rules in `roles/developer.md` "Environment Resolution"):
+
+1. PM resolves the project's canonical environment at preflight, records it in `.multiagent/project-profile.md`, and asks the client one question: may workers install into that env without per-item approval? The answer is the run's **package envelope**.
+2. A worker who hits a missing package verifies against the resolved env's interpreter (`<env-python> -m pip show <pkg>`), never a bare shell check.
+3. Present in the env → fix invocation. Truly missing → `package_need` message to PM (template: `templates/messages/package-need-request.md`), or a direct install when the envelope covers it — always targeting the resolved env explicitly.
+4. Silent fallback, silent skip, bare `pip install`, and system-Python installs are named anti-patterns.
+
+Packages are not counted against the skill install budget; the envelope plus PM review bounds them instead.
+
+## Local Overlay (`local/`, gitignored)
+
+Personal, machine-specific role additions live in `local/overlays/roles/<role>.md`. The installer merges them into the **installed** copies only (appended to Claude Code / Antigravity agent bodies; inserted into the generated Codex TOML's `developer_instructions`). Canonical files ship clean to GitHub; the validator warns if a canonical agent body mentions personal context-maintenance content. See `local/README.md` (created on first use) for layout and caveats.
+
 ## Per-Run Install Budget
 
 Default: **3 skill installs per run**.
@@ -86,7 +117,7 @@ The framework requires a real installed skill that can (a) search a skill regist
 
 | Platform     | Concrete skill that satisfies it today                              | Notes |
 |--------------|---------------------------------------------------------------------|-------|
-| Codex        | `skill-installer` (ships with the standard Codex skill catalog)     | Recommended default. Handles search + install for the OpenAI skill registry. |
+| Codex        | `skill-installer` (ships with the standard Codex skill catalog)     | Recommended default. Handles search + install for the OpenAI skill registry. Listed in the role-skill map's `[always]` section so it survives the per-role allowlist. |
 | Claude Code  | *No default ships in-box.* Community skills may satisfy; check `~/.claude/skills/` for anything with search + install semantics. | If none is installed, tier 2 degrades gracefully — see below. Consider installing a community equivalent if tier-2 gaps become common. |
 | Antigravity  | *No default ships in-box.* Same as Claude Code: community skills may satisfy; check `~/.gemini/config/skills/` (or the equivalent path). | Same graceful-degradation path. |
 

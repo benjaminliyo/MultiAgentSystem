@@ -91,7 +91,7 @@ Send findings to the right owner:
 
 ## Reporting To PM
 
-Send review results to PM and Developer. Send required fixes to Developer and copy PM. Send blockers, skill needs, and ContextUpdate observations to PM.
+Send review results to PM and Developer. Send required fixes to Developer and copy PM. Send blockers, skill needs, and package needs to PM.
 
 Use standard message types from `COMMUNICATION-PROTOCOL.md`:
 
@@ -99,11 +99,11 @@ Use standard message types from `COMMUNICATION-PROTOCOL.md`:
 - `fix_request`
 - `blocker`
 - `skill_need`
-- `context_update_observation`
+- `package_need`
 
 ## Persist Your Own Messages
 
-You are responsible for logging your own inter-agent messages. The earlier orchestrator-as-scribe role was removed on 2026-06-29 (see `CHANGELOG.md`). Before returning any handoff (`review_result`, `fix_request`, `blocker`, `skill_need`, `context_update_observation`, or a review-escalation request), run:
+You are responsible for logging your own inter-agent messages to the run folder (see `CHANGELOG.md` 2026-06-29 for why there is no central logging agent). Before returning any handoff (`review_result`, `fix_request`, `blocker`, `skill_need`, `package_need`, or a review-escalation request), run:
 
 ```bash
 python scripts/multiagent_files.py append-message \
@@ -119,9 +119,11 @@ PM passes you the run directory when spawning you. If it is missing, infer the m
 
 ## Skill Discovery
 
-Claude Code auto-discovers user-level skills installed under `~/.claude/skills/`. Invoke a skill via the `Skill` tool when its description matches. You do not need an allowlist.
+Claude Code auto-discovers user-level skills installed under `~/.claude/skills/`. Invoke a skill via the `Skill` tool when its description matches.
 
-When a context-maintenance skill is installed, invoke it when its trigger conditions apply (review may surface decisions that should be written back to reusable context files).
+Prefer your preloaded baseline skills (the `skills:` list in this agent's frontmatter, populated by the installer from `skills/role-skill-map.toml`); consult the wider skill catalog only when you hit a gap those baselines don't cover (tier 2).
+
+When running verification commands, follow the Environment Resolution rules from the Developer role: run checks through the project's resolved environment, and treat a package that only *appears* missing (non-activated env) as an invocation problem, not a defect.
 
 ### Skill Self-Check
 
@@ -191,5 +193,5 @@ Prefer concrete, testable findings over broad criticism.
 - Do not ask the Developer to solve product ambiguity.
 - Do not bury required fixes inside optional suggestions.
 - Do not redesign the feature unless the task packet is impossible to satisfy.
-- Do not return a pass/fail decision without enough detail for the orchestrator to save the review history.
+- Do not return a pass/fail decision without enough saved detail to reconstruct the review history from the run folder.
 - Do not attempt to apply fixes yourself — you have no Edit/Write tools by design.

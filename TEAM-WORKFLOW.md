@@ -84,7 +84,7 @@ Reviewer behaves like a test engineer and code reviewer. Reviewer should return 
 10. Developer fixes and resubmits.
 11. If review passes, Reviewer reports PASS to PM.
 12. PM checks the final result, updates project docs or asks Developer to update them, and reports to the client.
-13. Before wrap-up, agents consider whether a context-maintenance skill (if installed) should run.
+13. PM closes the run with `close-run`, which deactivates PM mode (removes the marker blocks and `active-run.json`).
 
 ## Scoped Autonomy Mode
 
@@ -92,7 +92,9 @@ At the start of a multi-agent run, PM (as the main-thread agent) should ask once
 
 Default run approval covers workspace/project read-write access, creation of `.multiagent/runs/...` artifacts, edits to implementation files, tests, and project docs, and routine local commands that stay inside the active sandbox.
 
-Default run approval does not cover broad machine access, writes outside the workspace, global Codex configuration changes, secrets, destructive cleanup outside the approved workspace scope, package installs requiring network, deployments, hosted services, or external account changes. Those still require explicit escalation.
+As part of the same preflight, PM records the project's resolved Python/runtime environment in the project profile and asks one package question: may workers install missing packages **into that resolved environment** without per-item approval? If the client says yes, that is the package envelope; installs into any other location still require explicit approval. See the Environment Resolution rules in `roles/developer.md`.
+
+Default run approval does not cover broad machine access, writes outside the workspace, global CLI configuration changes, secrets, destructive cleanup outside the approved workspace scope, package installs outside the approved envelope, deployments, hosted services, or external account changes. Those still require explicit escalation.
 
 ## Progress Management
 
@@ -124,7 +126,7 @@ Prefer creating this structure with the deterministic helper:
 python scripts/multiagent_files.py prepare-run --root <project-root> --task "<short task name>"
 ```
 
-Save every inter-agent message in `messages/`: PM task assignments and closeouts, Developer progress and ready-for-review messages, Reviewer pass/fail results, fix requests, blockers, skill requests, and ContextUpdate observations. Each agent is responsible for persisting its own messages before returning. Use `messages.jsonl` as the machine-readable index for those Markdown artifacts. The helper can append indexed messages:
+Save every inter-agent message in `messages/`: PM task assignments and closeouts, Developer progress and ready-for-review messages, Reviewer pass/fail results, fix requests, blockers, and skill or package requests. Each agent is responsible for persisting its own messages before returning. Use `messages.jsonl` as the machine-readable index for those Markdown artifacts. The helper can append indexed messages:
 
 ```powershell
 python scripts/multiagent_files.py append-message --run <run-dir> --from-role pm --to-role developer --type task_assignment --title "<title>" --body "<body>"
@@ -135,23 +137,6 @@ Record agent IDs and closure status in `run-summary.md` when available.
 The `transcripts/` folder is best-effort. Use it only for raw inter-agent replies or transcript excerpts that Codex exposes. The workflow does not require archiving unrelated private user-agent conversation.
 
 Do not close task-scoped Developer or Reviewer agents until their final inter-agent output has been saved, or until `run-summary.md` records why it could not be saved.
-
-## Context Maintenance
-
-When a context-maintenance skill is installed (one that keeps CLAUDE.md, AGENTS.md, project plans, or editor rules in sync with decisions made during work), agents should invoke it whenever its trigger conditions apply.
-
-If the workflow surfaces observations worth improving in such a skill, agents may report:
-
-- false positives,
-- false negatives,
-- confusing approval flow,
-- missing watched files,
-- unexpected edits proposed,
-- performance issues,
-- unclear reports,
-- runtime-specific behavior differences.
-
-Agents must still follow the skill's consent model: no context file edits are applied until proposed diffs are visible and explicitly approved.
 
 ## Skill Discovery Requirement
 

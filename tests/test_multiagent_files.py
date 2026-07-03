@@ -1,9 +1,13 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from scripts import install, multiagent_files
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class MultiAgentFilesTests(unittest.TestCase):
@@ -174,7 +178,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             "description: Test {name} agent for Claude Code validate-install fixtures.\n"
             "---\n"
             "\n"
-            "Body for {name}. Always invoke a context-maintenance skill when its triggers apply.\n"
+            "Body for {name}.\n"
         )
         for filename in install.CANONICAL_AGENT_FILES["claude-code"]:
             agent_name = filename.removesuffix(".md")
@@ -336,17 +340,18 @@ class MultiAgentFilesTests(unittest.TestCase):
                 payload["missing"],
             )
 
-    def test_claude_code_validate_install_warns_on_missing_context_maintenance_mention(self):
+    def test_claude_code_validate_install_warns_on_context_maintenance_in_canonical(self):
+        # Publish-cleanliness: personal context-maintenance content must live in
+        # the gitignored local/ overlay, not in canonical files shipped to GitHub.
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._make_claude_code_fixture(tmp)
-            # Valid frontmatter; body just doesn't mention context-maintenance.
             (fixture["repo_agents"] / "pm.md").write_text(
                 "---\n"
                 "name: pm\n"
-                "description: pm without the magic phrase\n"
+                "description: pm with leftover personal content\n"
                 "---\n"
                 "\n"
-                "Body without that phrase.\n",
+                "Body. Always invoke a context-maintenance skill when its triggers apply.\n",
                 encoding="utf-8",
             )
 
@@ -356,7 +361,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertTrue(payload["complete"])
             self.assertTrue(
                 any(
-                    "does not mention context-maintenance" in warning
+                    "mentions context-maintenance" in warning
                     for warning in payload["warnings"]
                 ),
                 payload["warnings"],
@@ -397,7 +402,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             "description: Test {name} agent for Antigravity validate-install fixtures.\n"
             "---\n"
             "\n"
-            "Body for {name}. Always invoke a context-maintenance skill when its triggers apply.\n"
+            "Body for {name}.\n"
         )
         for filename in install.CANONICAL_AGENT_FILES["antigravity"]:
             agent_name = filename.removesuffix(".md")
@@ -620,6 +625,72 @@ class MultiAgentFilesTests(unittest.TestCase):
             pm_text = (fixture["repo"] / "codex-agents" / "pm.toml").read_text(encoding="utf-8")
             self.assertNotIn("[[skills.config]]", pm_text)
 
+    def _write_role_skill_map(self, repo: Path, body: str) -> None:
+        map_dir = repo / "skills"
+        map_dir.mkdir(parents=True, exist_ok=True)
+        (map_dir / "role-skill-map.toml").write_text(body, encoding="utf-8")
+
+    def test_install_codex_scopes_skills_per_role_with_map(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._make_install_codex_fixture(tmp)
+            self._write_role_skill_map(
+                fixture["repo"],
+                "[always]\n"
+                'candidates = ["skill-installer"]\n'
+                "[roles.pm]\n"
+                'candidates = ["openai-docs"]\n'
+                "[roles.developer]\n"
+                'candidates = ["context-update"]\n'
+                "[roles.developer-strong]\n"
+                'candidates = ["context-update"]\n'
+                "[roles.reviewer]\n"
+                'candidates = ["context-update"]\n'
+                "[roles.reviewer-strong]\n"
+                'candidates = ["context-update"]\n',
+            )
+
+            payload = install.install_codex(
+                repo_root=fixture["repo"],
+                codex_home=fixture["codex_home"],
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            pm_text = (fixture["repo"] / "codex-agents" / "pm.toml").read_text(encoding="utf-8")
+            dev_text = (fixture["repo"] / "codex-agents" / "developer.toml").read_text(encoding="utf-8")
+            self.assertIn("skill-installer/SKILL.md", pm_text)
+            self.assertIn("openai-docs/SKILL.md", pm_text)
+            self.assertNotIn("context-update/SKILL.md", pm_text)
+            self.assertIn("skill-installer/SKILL.md", dev_text)
+            self.assertIn("context-update/SKILL.md", dev_text)
+            self.assertNotIn("openai-docs/SKILL.md", dev_text)
+
+    def test_install_codex_unmatched_role_falls_back_to_all_skills(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._make_install_codex_fixture(tmp)
+            self._write_role_skill_map(
+                fixture["repo"],
+                "[roles.pm]\n"
+                'candidates = ["not-installed-anywhere"]\n',
+            )
+
+            payload = install.install_codex(
+                repo_root=fixture["repo"],
+                codex_home=fixture["codex_home"],
+            )
+
+            # pm matched nothing installed -> unscoped fallback with warning;
+            # developer is unmapped -> unscoped fallback with warning.
+            pm_text = (fixture["repo"] / "codex-agents" / "pm.toml").read_text(encoding="utf-8")
+            self.assertEqual(pm_text.count("[[skills.config]]"), 3)
+            self.assertTrue(
+                any("No installed skills matched" in w for w in payload["warnings"]),
+                payload["warnings"],
+            )
+            self.assertTrue(
+                any("not in role-skill map" in w for w in payload["warnings"]),
+                payload["warnings"],
+            )
+
     def test_install_codex_output_passes_validate_install(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._make_install_codex_fixture(tmp)
@@ -671,10 +742,14 @@ class MultiAgentFilesTests(unittest.TestCase):
             encoding="utf-8",
         )
         (commands_src / "multiagent.md").write_text("# /multiagent\n", encoding="utf-8")
-        (hooks_src / "session-start-load-profile.ps1").write_text("# session start\n", encoding="utf-8")
-        (hooks_src / "session-start-load-profile.sh").write_text("#!/bin/bash\n", encoding="utf-8")
-        (hooks_src / "stop-warn-unclosed-run.ps1").write_text("# stop\n", encoding="utf-8")
-        (hooks_src / "stop-warn-unclosed-run.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+        for base in (
+            "session-start-load-profile",
+            "stop-warn-unclosed-run",
+            "user-prompt-pm-mode",
+        ):
+            (hooks_src / f"{base}.ps1").write_text(f"# {base}\n", encoding="utf-8")
+            (hooks_src / f"{base}.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+        (hooks_src / "subagent-log.py").write_text("# subagent log\n", encoding="utf-8")
 
         return {"repo": repo, "claude_home": claude_home}
 
@@ -696,6 +771,65 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertFalse(payload["hooks"]["wired"])
             self.assertFalse((fx["claude_home"] / "settings.json").exists())
 
+    def test_install_claude_code_injects_role_skills_frontmatter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+            self._write_role_skill_map(
+                fx["repo"],
+                "[always]\n"
+                'candidates = ["multiagent-workflow"]\n'
+                "[roles.pm]\n"
+                'candidates = ["writing-plans"]\n'
+                "[roles.developer]\n"
+                'candidates = ["github"]\n',
+            )
+            for skill_name in ("writing-plans", "github"):
+                skill_dir = fx["claude_home"] / "skills" / skill_name
+                skill_dir.mkdir(parents=True)
+                (skill_dir / "SKILL.md").write_text(
+                    f"---\nname: {skill_name}\n---\nbody\n", encoding="utf-8"
+                )
+
+            payload = install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=False,
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            pm_installed = (fx["claude_home"] / "agents" / "pm.md").read_text(encoding="utf-8")
+            dev_installed = (fx["claude_home"] / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("skills:", pm_installed)
+            self.assertIn("- writing-plans", pm_installed)
+            self.assertIn("- multiagent-workflow", pm_installed)
+            self.assertNotIn("- github", pm_installed)
+            self.assertIn("- github", dev_installed)
+            self.assertNotIn("- writing-plans", dev_installed)
+            # multiagent-workflow was copied by this very install, then matched.
+            self.assertEqual(
+                payload["skills_injected"]["pm"],
+                ["multiagent-workflow", "writing-plans"],
+            )
+            # Canonical source files stay clean.
+            pm_canonical = (fx["repo"] / "claude-code" / "agents" / "pm.md").read_text(encoding="utf-8")
+            self.assertNotIn("skills:", pm_canonical)
+
+    def test_install_claude_code_without_map_copies_agents_verbatim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+
+            payload = install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=False,
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            self.assertEqual(payload["skills_injected"], {})
+            pm_installed = (fx["claude_home"] / "agents" / "pm.md").read_text(encoding="utf-8")
+            pm_canonical = (fx["repo"] / "claude-code" / "agents" / "pm.md").read_text(encoding="utf-8")
+            self.assertEqual(pm_installed, pm_canonical)
+
     def test_install_claude_code_wires_hooks_into_new_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             fx = self._make_claude_code_source_fixture(tmp)
@@ -709,10 +843,15 @@ class MultiAgentFilesTests(unittest.TestCase):
             settings_path = fx["claude_home"] / "settings.json"
             self.assertTrue(settings_path.exists())
             settings = json.loads(settings_path.read_text(encoding="utf-8"))
-            self.assertIn("SessionStart", settings["hooks"])
-            self.assertIn("Stop", settings["hooks"])
+            for event in ("SessionStart", "UserPromptSubmit", "SubagentStart", "SubagentStop", "Stop"):
+                self.assertIn(event, settings["hooks"], event)
             session_cmd = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
             self.assertIn("session-start-load-profile", session_cmd)
+            prompt_cmd = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+            self.assertIn("user-prompt-pm-mode", prompt_cmd)
+            subagent_cmd = settings["hooks"]["SubagentStop"][0]["hooks"][0]["command"]
+            self.assertIn("subagent-log.py", subagent_cmd)
+            self.assertTrue(subagent_cmd.startswith("python "))
 
     def test_install_claude_code_hooks_are_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -788,6 +927,409 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertTrue(
                 (fx["antigravity_home"] / "skills" / "multiagent-workflow" / "SKILL.md").exists()
             )
+
+    # ---- active-run lifecycle: markers, set-state, close-run ----
+
+    def test_prepare_run_activates_pm_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+
+            payload = multiagent_files.prepare_run(root, "Sticky role", "2026-07-02")
+
+            active_path = root / ".multiagent" / "active-run.json"
+            self.assertTrue(payload["activation"]["activated"])
+            self.assertTrue(active_path.exists())
+            active = json.loads(active_path.read_text(encoding="utf-8"))
+            self.assertEqual(active["role"], "pm")
+            self.assertEqual(active["state"], "intake")
+            self.assertEqual(active["run_name"], "2026-07-02-sticky-role")
+
+            # No context files existed, so AGENTS.md + CLAUDE.md are created.
+            for name in ("AGENTS.md", "CLAUDE.md"):
+                text = (root / name).read_text(encoding="utf-8")
+                self.assertIn(multiagent_files.MARKER_BEGIN, text)
+                self.assertIn(multiagent_files.MARKER_END, text)
+                self.assertIn("2026-07-02-sticky-role", text)
+            self.assertFalse((root / "GEMINI.md").exists())
+
+    def test_prepare_run_no_activate_skips_markers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+
+            payload = multiagent_files.prepare_run(
+                root, "Quiet run", "2026-07-02", activate=False
+            )
+
+            self.assertFalse(payload["activation"]["activated"])
+            self.assertFalse((root / ".multiagent" / "active-run.json").exists())
+            self.assertFalse((root / "AGENTS.md").exists())
+
+    def test_marker_upsert_preserves_existing_content_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            claude_md = root / "CLAUDE.md"
+            claude_md.write_text("# My Project\n\nUser content stays.\n", encoding="utf-8")
+
+            multiagent_files.prepare_run(root, "Marker test", "2026-07-02")
+            first = claude_md.read_text(encoding="utf-8")
+            # Re-activating replaces the block instead of appending a duplicate.
+            multiagent_files.prepare_run(root, "Marker test", "2026-07-02")
+            second = claude_md.read_text(encoding="utf-8")
+
+            self.assertIn("User content stays.", first)
+            self.assertEqual(first.count(multiagent_files.MARKER_BEGIN), 1)
+            self.assertEqual(second.count(multiagent_files.MARKER_BEGIN), 1)
+            # Existing context file used; no new AGENTS.md forced alongside it.
+            self.assertFalse((root / "AGENTS.md").exists())
+
+    def test_set_state_updates_summary_and_active_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            payload = multiagent_files.prepare_run(root, "State walk", "2026-07-02")
+            run_dir = Path(payload["run_dir"])
+
+            result = multiagent_files.set_state(run_dir, "developer_implementation")
+
+            self.assertTrue(result["summary_updated"])
+            self.assertEqual(result["warnings"], [])
+            summary = (run_dir / "run-summary.md").read_text(encoding="utf-8")
+            self.assertIn("state: developer_implementation", summary)
+            active = json.loads(
+                (root / ".multiagent" / "active-run.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(active["state"], "developer_implementation")
+
+    def test_set_state_rejects_unknown_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            payload = multiagent_files.prepare_run(root, "Bad state", "2026-07-02")
+
+            with self.assertRaises(multiagent_files.MultiAgentFileError):
+                multiagent_files.set_state(Path(payload["run_dir"]), "napping")
+
+    def test_close_run_removes_markers_and_active_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            claude_md = root / "CLAUDE.md"
+            claude_md.write_text("# My Project\n\nKeep me.\n", encoding="utf-8")
+            payload = multiagent_files.prepare_run(root, "Full loop", "2026-07-02")
+            run_dir = Path(payload["run_dir"])
+
+            result = multiagent_files.close_run(root)
+
+            self.assertTrue(result["deactivated"])
+            self.assertIn("CLAUDE.md", result["markers_removed_from"])
+            self.assertFalse((root / ".multiagent" / "active-run.json").exists())
+            text = claude_md.read_text(encoding="utf-8")
+            self.assertIn("Keep me.", text)
+            self.assertNotIn(multiagent_files.MARKER_BEGIN, text)
+            summary = (run_dir / "run-summary.md").read_text(encoding="utf-8")
+            self.assertIn("state: done", summary)
+
+    def test_activate_run_restores_pm_mode_for_closed_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            payload = multiagent_files.prepare_run(root, "Old run", "2026-07-01")
+            run_dir = Path(payload["run_dir"])
+            multiagent_files.set_state(run_dir, "developer_implementation")
+            multiagent_files.close_run(root)
+            self.assertFalse((root / ".multiagent" / "active-run.json").exists())
+
+            result = multiagent_files.reactivate_run(root, run_dir)
+
+            self.assertTrue(result["activation"]["activated"])
+            self.assertEqual(result["state"], "done")
+            # Terminal-state resume warns so PM knows to set-state before continuing.
+            self.assertTrue(any("terminal state" in w for w in result["warnings"]))
+            active = json.loads(
+                (root / ".multiagent" / "active-run.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(active["run_name"], "2026-07-01-old-run")
+            self.assertEqual(active["state"], "done")
+            self.assertIn(
+                multiagent_files.MARKER_BEGIN,
+                (root / "AGENTS.md").read_text(encoding="utf-8"),
+            )
+
+    def test_activate_run_mid_state_carries_state_without_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            payload = multiagent_files.prepare_run(root, "Interrupted", "2026-07-02")
+            run_dir = Path(payload["run_dir"])
+            multiagent_files.set_state(run_dir, "reviewer_checking")
+            # Simulate a dead session that lost active-run.json but kept the run folder.
+            (root / ".multiagent" / "active-run.json").unlink()
+
+            result = multiagent_files.reactivate_run(root, run_dir)
+
+            self.assertEqual(result["state"], "reviewer_checking")
+            self.assertEqual(result["warnings"], [])
+
+    def test_close_run_deletes_context_files_it_created(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            # No context files exist, so activation creates AGENTS.md + CLAUDE.md
+            # purely for the marker block; close-run removes the empty leftovers.
+            multiagent_files.prepare_run(root, "Ephemeral files", "2026-07-02")
+            self.assertTrue((root / "AGENTS.md").exists())
+            self.assertTrue((root / "CLAUDE.md").exists())
+
+            multiagent_files.close_run(root)
+
+            self.assertFalse((root / "AGENTS.md").exists())
+            self.assertFalse((root / "CLAUDE.md").exists())
+
+    def test_close_run_without_active_run_still_cleans_markers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            claude_md = root / "CLAUDE.md"
+            claude_md.write_text(
+                "# Project\n\n"
+                + multiagent_files.marker_block("orphaned-run")
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = multiagent_files.close_run(root)
+
+            self.assertFalse(result["deactivated"])
+            self.assertIn("CLAUDE.md", result["markers_removed_from"])
+            self.assertTrue(any("no active run" in w for w in result["warnings"]))
+            self.assertNotIn(multiagent_files.MARKER_BEGIN, claude_md.read_text(encoding="utf-8"))
+
+    # ---- local overlay merge ----
+
+    def _write_overlay(self, repo: Path, role: str, body: str) -> None:
+        overlay_dir = repo / "local" / "overlays" / "roles"
+        overlay_dir.mkdir(parents=True, exist_ok=True)
+        (overlay_dir / f"{role}.md").write_text(body, encoding="utf-8")
+
+    def test_install_claude_code_appends_local_overlay(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+            self._write_overlay(
+                fx["repo"], "pm", "## Personal Additions\n\nUse my private feedback skill.\n"
+            )
+
+            install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=False,
+            )
+
+            pm_installed = (fx["claude_home"] / "agents" / "pm.md").read_text(encoding="utf-8")
+            dev_installed = (fx["claude_home"] / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("Use my private feedback skill.", pm_installed)
+            self.assertNotIn("Use my private feedback skill.", dev_installed)
+            # Canonical source stays clean.
+            pm_canonical = (fx["repo"] / "claude-code" / "agents" / "pm.md").read_text(encoding="utf-8")
+            self.assertNotIn("Personal Additions", pm_canonical)
+
+    def test_install_codex_inserts_overlay_inside_instructions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._make_install_codex_fixture(tmp)
+            # Give templates a developer_instructions block the overlay can join.
+            for filename in install.CANONICAL_AGENT_FILES["codex"]:
+                role = filename.removesuffix(".toml")
+                (fixture["template_dir"] / filename).write_text(
+                    f'name = "{role}"\n'
+                    'developer_instructions = """\n'
+                    f"You are the {role} agent.\n"
+                    '"""\n',
+                    encoding="utf-8",
+                )
+            self._write_overlay(fixture["repo"], "developer", "Personal: prefer my local linter skill.")
+
+            payload = install.install_codex(
+                repo_root=fixture["repo"],
+                codex_home=fixture["codex_home"],
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            dev_text = (fixture["repo"] / "codex-agents" / "developer.toml").read_text(encoding="utf-8")
+            pm_text = (fixture["repo"] / "codex-agents" / "pm.toml").read_text(encoding="utf-8")
+            self.assertIn("Personal: prefer my local linter skill.", dev_text)
+            self.assertNotIn("Personal: prefer my local linter skill.", pm_text)
+            # Overlay landed inside the instructions string, before the closing quotes.
+            self.assertLess(
+                dev_text.index("Personal: prefer my local linter skill."),
+                dev_text.rindex('"""'),
+            )
+            # Still valid TOML.
+            import tomllib
+            parsed = tomllib.loads(dev_text)
+            self.assertIn("Personal: prefer my local linter skill.", parsed["developer_instructions"])
+
+    def test_install_antigravity_appends_local_overlay(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_antigravity_source_fixture(tmp)
+            self._write_overlay(fx["repo"], "reviewer", "Personal reviewer note.")
+
+            install.install_antigravity(
+                repo_root=fx["repo"],
+                antigravity_home=fx["antigravity_home"],
+            )
+
+            reviewer_installed = (fx["antigravity_home"] / "agents" / "reviewer.md").read_text(encoding="utf-8")
+            self.assertIn("Personal reviewer note.", reviewer_installed)
+
+    # ---- project hooks + subagent-log hook ----
+
+    def test_prepare_run_project_hooks_renders_codex_hooks_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+
+            payload = multiagent_files.prepare_run(
+                root, "Hook render", "2026-07-02", project_hooks="codex"
+            )
+
+            hooks_path = root / ".codex" / "hooks.json"
+            self.assertTrue(payload["project_hooks"]["written"])
+            self.assertTrue(hooks_path.exists())
+            rendered = json.loads(hooks_path.read_text(encoding="utf-8"))
+            for event in ("SessionStart", "UserPromptSubmit", "SubagentStart", "SubagentStop", "Stop"):
+                self.assertIn(event, rendered["hooks"], event)
+            text = hooks_path.read_text(encoding="utf-8")
+            self.assertNotIn("{{", text)
+            self.assertIn("user-prompt-pm-mode", text)
+            self.assertIn("subagent-log.py", text)
+
+            # Existing project hooks are never overwritten.
+            second = multiagent_files.prepare_run(
+                root, "Hook render", "2026-07-02", project_hooks="codex"
+            )
+            self.assertFalse(second["project_hooks"]["written"])
+
+    def test_prepare_run_project_hooks_renders_antigravity_hooks_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+
+            payload = multiagent_files.prepare_run(
+                root, "AG hooks", "2026-07-02", project_hooks="antigravity"
+            )
+
+            hooks_path = root / ".agents" / "hooks.json"
+            self.assertTrue(payload["project_hooks"]["written"])
+            rendered = json.loads(hooks_path.read_text(encoding="utf-8"))
+            group = rendered["multiagent-workflow"]
+            for event in ("PreInvocation", "PreToolUse", "PostToolUse", "Stop"):
+                self.assertIn(event, group, event)
+            self.assertEqual(group["PostToolUse"][0]["matcher"], "invoke_subagent")
+            text = hooks_path.read_text(encoding="utf-8")
+            self.assertNotIn("{{", text)
+            self.assertIn("subagent-log.py", text)
+            # PreInvocation must use the JSON-emitting variant (Antigravity
+            # parses hook stdout as JSON; plain text can crash the turn).
+            pre_invocation_cmd = group["PreInvocation"][0]["hooks"][0]["command"]
+            self.assertIn("user-prompt-pm-mode.py", pre_invocation_cmd)
+            # Antigravity's schema treats top-level keys as hook-group names,
+            # so no _comment key may be injected.
+            self.assertNotIn("_comment", rendered)
+
+    def test_subagent_log_hook_handles_antigravity_tool_payload(self):
+        hook_script = REPO_ROOT / "claude-code" / "hooks" / "subagent-log.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            payload = multiagent_files.prepare_run(root, "AG log", "2026-07-02")
+            run_dir = Path(payload["run_dir"])
+
+            stdin_payload = json.dumps(
+                {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "invoke_subagent",
+                    "tool_input": {"Subagents": [{"TypeName": "reviewer"}]},
+                }
+            )
+            result = subprocess.run(
+                [sys.executable, str(hook_script)],
+                input=stdin_payload,
+                capture_output=True,
+                text=True,
+                cwd=root,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            index = (run_dir / "messages.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(index), 1)
+            record = json.loads(index[0])
+            self.assertEqual(record["type"], "subagent_stop")
+            self.assertEqual(record["from"], "reviewer")
+            self.assertEqual(record["to"], "pm")
+
+    def test_subagent_log_hook_writes_event_and_message(self):
+        hook_script = REPO_ROOT / "claude-code" / "hooks" / "subagent-log.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            payload = multiagent_files.prepare_run(root, "Hook log", "2026-07-02")
+            run_dir = Path(payload["run_dir"])
+
+            stdin_payload = json.dumps(
+                {"hook_event_name": "SubagentStop", "agent_type": "developer"}
+            )
+            result = subprocess.run(
+                [sys.executable, str(hook_script)],
+                input=stdin_payload,
+                capture_output=True,
+                text=True,
+                cwd=root,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            events_path = run_dir / "transcripts" / "subagent-events.jsonl"
+            self.assertTrue(events_path.exists())
+            event = json.loads(events_path.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(event["agent_types"], ["developer"])
+
+            index = (run_dir / "messages.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(index), 1)
+            record = json.loads(index[0])
+            self.assertEqual(record["type"], "subagent_stop")
+            self.assertEqual(record["from"], "developer")
+            self.assertEqual(record["to"], "pm")
+
+    def test_pm_mode_json_hook_emits_valid_json_contract(self):
+        hook_script = REPO_ROOT / "claude-code" / "hooks" / "user-prompt-pm-mode.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+
+            # No active run: exactly one empty JSON object, exit 0.
+            idle = subprocess.run(
+                [sys.executable, str(hook_script)],
+                capture_output=True,
+                text=True,
+                cwd=root,
+            )
+            self.assertEqual(idle.returncode, 0, idle.stderr)
+            self.assertEqual(json.loads(idle.stdout), {})
+
+            multiagent_files.prepare_run(root, "Json contract", "2026-07-02")
+            active = subprocess.run(
+                [sys.executable, str(hook_script)],
+                capture_output=True,
+                text=True,
+                cwd=root,
+            )
+            self.assertEqual(active.returncode, 0, active.stderr)
+            parsed = json.loads(active.stdout)
+            self.assertIn("2026-07-02-json-contract", parsed["additionalContext"])
+            self.assertIn("PM mode active", parsed["additionalContext"])
+            # Exactly one JSON object on stdout, nothing else.
+            self.assertEqual(len(active.stdout.strip().splitlines()), 1)
+
+    def test_subagent_log_hook_is_silent_without_active_run(self):
+        hook_script = REPO_ROOT / "claude-code" / "hooks" / "subagent-log.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(
+                [sys.executable, str(hook_script)],
+                input='{"hook_event_name": "SubagentStop", "agent_type": "developer"}',
+                capture_output=True,
+                text=True,
+                cwd=Path(tmp).resolve(),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "")
+            self.assertFalse((Path(tmp) / ".multiagent").exists())
 
     def test_install_dispatch_all_platforms(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -31,7 +31,35 @@ That's it. Restart Antigravity/`agy`, then `/multiagent <task>` or the trigger p
 
 The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`. PM is the main-thread agent and absorbs mechanical routing.
 
+If a gitignored `local/overlays/roles/<role>.md` exists, the installer appends its content to the installed agent body — personal additions without touching canonical files.
+
 `scripts/multiagent_files.py` is not copied — the workflow invokes it from this repo path. `git pull` updates it.
+
+## Optional: Hooks
+
+Antigravity supports hooks via a workspace-level `.agents/hooks.json` (or plugin-level `~/.gemini/antigravity-cli/plugins/<plugin>/hooks.json`). Supported events: `PreInvocation`, `PostInvocation`, `PreToolUse`, `PostToolUse`, `Stop` — there is no SubagentStart/SubagentStop, so the subagent auto-logger hooks `PreToolUse`/`PostToolUse` with `matcher: "invoke_subagent"` instead, which fires at the same spawn/finish boundary.
+
+The easy path: let `prepare-run` render it into the target project —
+
+```powershell
+python scripts\multiagent_files.py prepare-run --root <project-root> --task "<name>" --project-hooks antigravity
+```
+
+This writes `<project>/.agents/hooks.json` from the `antigravity/hooks.json` template with the `{{...}}` placeholders resolved to this machine's absolute commands. Manual alternative: copy the template yourself and substitute:
+
+```text
+{{USER_PROMPT_JSON_CMD}} -> python "<repo>/claude-code/hooks/user-prompt-pm-mode.py"
+{{SUBAGENT_LOG_CMD}}     -> python "<repo>/claude-code/hooks/subagent-log.py"
+{{STOP_CMD}}             -> powershell -NoProfile -ExecutionPolicy Bypass -File "<repo>/claude-code/hooks/stop-warn-unclosed-run.ps1"
+```
+
+(Use `bash "<repo>/claude-code/hooks/stop-warn-unclosed-run.sh"` on macOS/Linux.) Check active hooks with the `/hooks` slash command.
+
+**PreInvocation JSON contract.** Antigravity injects PreInvocation hook output into the agent's context only when stdout is a single flat JSON object — the `additionalContext` field is appended to the LLM context, and any plain text on stdout fails the framework's JSON parser and can crash the turn. That is why the PM reminder here uses `user-prompt-pm-mode.py` (always prints exactly one JSON object, `{}` when no run is active) instead of the plain-text `.ps1`/`.sh` variants used on Claude Code and Codex. If you ever swap in your own command, keep debug output on stderr.
+
+Note: the Stop entry runs the plain-text `stop-warn-unclosed-run` script; whether Antigravity applies the same JSON contract to Stop hook output is unconfirmed. If unclosed-run warnings misbehave, remove the Stop entry from `.agents/hooks.json`.
+
+All hooks are silent outside active multiagent runs, and unknown payload shapes degrade to transcript-only records.
 
 ## Verify
 

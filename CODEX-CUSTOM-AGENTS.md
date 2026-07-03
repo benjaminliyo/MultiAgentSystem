@@ -75,7 +75,7 @@ Use `COMMUNICATION-PROTOCOL.md` for message structure and `TEAM-WORKFLOW.md` for
 
 ## Skill Configuration
 
-Shipped canonical templates live at `codex-agents/templates/*.toml`. These templates contain the role instructions and skill *categories* (e.g. "a plan-writing skill," "a context-maintenance skill"), but no concrete `[[skills.config]]` path entries — those depend on which skills each user has installed locally.
+Shipped canonical templates live at `codex-agents/templates/*.toml`. These templates contain the role instructions and skill *categories* (e.g. "a plan-writing skill," "a systematic-debugging skill"), but no concrete `[[skills.config]]` path entries — those depend on which skills each user has installed locally.
 
 The installer (`.\scripts\install.ps1 codex` or `./scripts/install.sh codex`) scans `~/.codex/skills/` and `~/.codex/plugins/` for `SKILL.md` files and appends a `[[skills.config]]` block per skill to each generated `codex-agents/<role>.toml` before copying to `~/.codex/agents/<role>.toml`.
 

@@ -13,7 +13,7 @@ message_id: MSG-YYYYMMDD-NNN
 task_id: TASK-YYYYMMDD-short-name
 from: pm | developer | developer-strong | reviewer | reviewer-strong | orchestrator | client
 to: pm | developer | developer-strong | reviewer | reviewer-strong | orchestrator | client
-type: task_assignment | progress_update | ready_for_review | review_result | fix_request | blocker | decision_record | skill_need | context_update_observation | closeout | escalation_request
+type: task_assignment | progress_update | ready_for_review | review_result | fix_request | blocker | decision_record | skill_need | package_need | closeout | escalation_request | subagent_start | subagent_stop
 status: draft | sent | acknowledged | blocked | done
 priority: low | normal | high | urgent
 created_at: YYYY-MM-DD HH:MM TZ
@@ -82,13 +82,19 @@ Purpose: ask for help when product, technical, permission, tool, or external-sta
 
 From any agent to PM.
 
-Purpose: request installation or use of a new skill.
+Purpose: request installation or use of a new skill. See `docs/skills-framework.md` for the tier model and install budget.
 
-### ContextUpdate Observation
+### Package Need Request
 
-From any agent to PM.
+From Developer (either tier) to PM.
 
-Purpose: report useful or problematic behavior from the user's ContextUpdate skill.
+Purpose: request installation of a missing package into the project's resolved environment. Sent only after the environment-resolution check confirms the package is truly missing (not just in a non-activated venv/conda env). Body must name the package, the resolved target environment, why it is needed, and the fallback cost of working without it. Never install silently and never fall back silently — this message is the required alternative to both.
+
+### Subagent Start / Stop (auto-logged)
+
+From PM to worker (`subagent_start`) and worker to PM (`subagent_stop`).
+
+Purpose: mechanical spawn/finish boundary records written by the `subagent-log` hook on platforms that support subagent hook events. These are a durability net, not a replacement for the worker's own semantic messages.
 
 ### Closeout
 
@@ -117,7 +123,7 @@ PM respawns the task on the strong-tier agent with the original task packet plus
 - Review PASS goes to PM.
 - Permission or tool blockers go to PM.
 - Skill installation requests go to PM.
-- ContextUpdate observations go to PM and should be captured in the run folder.
+- Package installation requests go to PM; PM approves within the client's pre-approved environment envelope or forwards to the Client.
 - Tier escalation requests go to PM. PM owns respawning the task on the stronger-tier agent.
 
 ## Storage

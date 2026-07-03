@@ -11,9 +11,16 @@ Invoke the `multiagent-workflow` skill. That skill is the canonical operating do
 - Developer and Reviewer are spawned as subagents via the `Agent` tool with `subagent_type: "developer" | "developer-strong" | "reviewer" | "reviewer-strong"`.
 - Workers self-log their own inter-agent messages via `scripts/multiagent_files.py append-message`.
 
+## Special Arguments: off / resume
+
+Check the first word of `$ARGUMENTS` before treating it as a task:
+
+- **`/multiagent off`** — deactivate PM mode. Run `python scripts/multiagent_files.py close-run --root <project-root>` (use the canonical repo path for the script). This sets the run's terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `.multiagent/active-run.json`. Confirm to the client that PM mode is off, then behave as a normal session.
+- **`/multiagent resume [run-name]`** — resume a run. Without a name, target `.multiagent/active-run.json` (or, if missing, the newest folder under `.multiagent/runs/`); with a name, target `.multiagent/runs/<run-name>/`. If PM mode is not currently active for that run, re-activate it: `python scripts/multiagent_files.py activate-run --root <project-root> --run <run-dir>` (restores `active-run.json` + marker blocks; works on closed runs too — `set-state` to a working state when deliberately reopening one). Then read `run-summary.md` and the tail of `messages.jsonl`, re-adopt PM's role, report the reconstructed state to the client (what was done, what state the run is in, what comes next), and continue from the recorded state. Do not restart work that the message log shows as already completed.
+
 ## Initial Client Request
 
-Everything the user typed after `/multiagent` on the invoking line is the initial client request:
+Everything else the user typed after `/multiagent` on the invoking line is the initial client request:
 
 $ARGUMENTS
 
@@ -24,15 +31,15 @@ If `$ARGUMENTS` is empty or just whitespace, do not assume a task. Ask the clien
 The `multiagent-workflow` skill body covers these in detail. Quick reference:
 
 1. Read `~/.claude/agents/pm.md` and adopt PM's role.
-2. Run the Scoped Autonomy preflight (one approval for workspace read-write).
-3. Create the run folder: `python scripts/multiagent_files.py prepare-run --root <project-root> --task "<short task name>"`.
+2. Run the Scoped Autonomy preflight (one approval for workspace read-write), including the environment/package preflight: resolve the project env, record it in the project profile, and ask the one package-envelope question.
+3. Create the run folder and activate PM mode: `python scripts/multiagent_files.py prepare-run --root <project-root> --task "<short task name>"` (writes `active-run.json` + context-file marker blocks; the `user-prompt-pm-mode` hook keeps the role fresh each turn).
 4. Log the client request and the Scoped Autonomy decision as the first messages.
-5. Create `TaskCreate` tasks for the workflow state machine.
+5. Create `TaskCreate` tasks for the workflow state machine; run `set-state` on every transition.
 6. Clarify the client request, draft the task packet, present via `EnterPlanMode`.
 7. After `ExitPlanMode`, spawn Developer at the tier PM selected (`developer` or `developer-strong`). Use `isolation: "worktree"` for multi-file or migration work.
 8. On `ESCALATE_TO_STRONG_DEVELOPER`, respawn on `developer-strong` with the escalation reason attached.
 9. On ready-for-review, spawn Reviewer (`reviewer` or `reviewer-strong` based on risk). On `ESCALATE_TO_STRONG_REVIEWER`, respawn on `reviewer-strong`.
-10. On Reviewer PASS, draft the closeout, mark the run complete, close idle agents.
+10. On Reviewer PASS, draft the closeout, close idle agents, then deactivate PM mode: `python scripts/multiagent_files.py close-run --root <project-root>`.
 
 ## Parallel And Background Spawning
 
