@@ -2,7 +2,7 @@
 description: Launch the PM-led multi-agent workflow. Pass the initial client request as arguments (e.g. /multiagent fix the login redirect bug). The main session adopts PM's role; Developer and Reviewer are spawned as subagents.
 ---
 
-Invoke the `multiagent-workflow` skill. That skill is the canonical operating doc for this workflow — read its body and follow it for the rest of the run.
+Invoke the `multiagent-workflow` skill and follow its launch sequence. The PM role file (`~/.claude/agents/pm.md`) is the canonical operating doc for the run — the skill covers launch, entry points, and troubleshooting.
 
 ## Core Contract
 
@@ -28,7 +28,7 @@ If `$ARGUMENTS` is empty or just whitespace, do not assume a task. Ask the clien
 
 ## Launch Steps (Summary)
 
-The `multiagent-workflow` skill body covers these in detail. Quick reference:
+The skill's launch sequence and the PM role's "Routing And Run Management" section cover these in detail. Quick reference:
 
 1. Read `~/.claude/agents/pm.md` and adopt PM's role.
 2. Run the Scoped Autonomy preflight (one approval for workspace read-write), including the environment/package preflight: resolve the project env, record it in the project profile, and ask the one package-envelope question.

@@ -9,7 +9,9 @@ Launch and drive the user's PM-led multi-agent team on Claude Code.
 
 ## Core Model
 
-PM is the main-thread agent. When this skill is invoked, the main Claude Code session **adopts PM's role** rather than spawning a separate `pm` subagent — read `~/.claude/agents/pm.md` (or the canonical copy at `claude-code/agents/pm.md`) and follow its "Mission", "Authority", "Workflow", and "Routing And Run Management" sections as your operating instructions for the rest of the run.
+PM is the main-thread agent. When this skill is invoked, the main Claude Code session **adopts PM's role** rather than spawning a separate `pm` subagent — read `~/.claude/agents/pm.md` (or the canonical copy at `claude-code/agents/pm.md`) and follow it as your operating instructions for the rest of the run.
+
+The role file is the single source of truth for run mechanics. Its "Routing And Run Management" section owns spawn tiers and escalation respawns, worktree isolation, parallel and background spawning, workflow-state tracking, message persistence, the optional Researcher, closeout, and resume; its "Plan Mode As Client-Approval Gate" section owns approval gating. This skill covers launch, entry points, and troubleshooting only — do not look for routing detail here, and do not re-derive it.
 
 PM owns product judgment AND mechanical routing. The earlier dedicated `multiagent-orchestrator` agent was removed on 2026-06-29 (see `CHANGELOG.md`); do not look for it. The spawnable `pm` agent file exists for the autonomous-loop scenario in `FUTURE-PLANS.md`, not for the interactive workflow this skill handles.
 
@@ -25,85 +27,16 @@ PM owns product judgment AND mechanical routing. The earlier dedicated `multiage
    ```
    Besides the run folder, this writes `.multiagent/active-run.json` and inserts a PM-mode marker block into the project's context files — that is what keeps the PM role alive through long sessions, compaction, and interruptions (the `user-prompt-pm-mode` hook reads it every turn). Save the resulting run path; every `append-message` call needs it.
 4. **Log the entry messages.** Append the client request summary and the Scoped Autonomy decision via `append-message --from-role client --to-role pm --type decision_record ...`.
-5. **Mirror the state machine.** Use `TaskCreate` to create one task per workflow state: `pm_discovery`, `awaiting_client_approval`, `developer_implementation`, `reviewer_checking`, `developer_fixing`, `pm_closeout`. Update `in_progress` / `completed` as routing moves through states, and run `python scripts/multiagent_files.py set-state --run <run-dir> --state <state>` on every transition so the durable state stays current. Tier escalations and failed reviews are self-loops.
-6. **Start PM work.** Clarify the client request, draft the task packet, and use `EnterPlanMode` to present it for approval.
+5. **Mirror the state machine.** Create one `TaskCreate` task per workflow state and run `set-state` on every transition, as the role's routing section describes.
+6. **Start PM work.** Clarify the client request, draft the task packet, and present it via `EnterPlanMode` — the client-approval gate. From `ExitPlanMode` onward, follow the role's "Routing And Run Management".
 
-## Plan-Mode Contract
+## Entry Points
 
-`EnterPlanMode` is PM's client-approval gate. The plan body is the task packet. `ExitPlanMode` is the approval signal — only after the client exits plan mode do you spawn Developer.
+- **`/multiagent <task>`** — loads this skill with the task as the initial client request (see `claude-code/commands/multiagent.md`). The two paths are equivalent — the slash command is a UX convenience.
+- **`/multiagent off`** — deactivate PM mode: run `python scripts/multiagent_files.py close-run --root <project-root>`. This sets the run's terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `.multiagent/active-run.json` — the per-turn PM reminder stops immediately. Confirm the deactivation and continue as a normal session.
+- **`/multiagent resume [run-name]`** — after an interruption, or when the client names a previous run, resume rather than restart. Follow the "Resume" step in the role's routing section: pick the target run, `activate-run` if PM mode is not active for it, reconstruct from `run-summary.md` and the tail of `messages.jsonl`, report the reconstructed state to the client, and continue without redoing work the message log shows as completed.
 
-Do not skip plan mode. Do not edit business code while drafting the packet — plan mode prevents tool side effects and gives the client a single, explicit approval gate.
-
-## Spawning Developer
-
-Use the PM's `Suggested Developer Tier` as the first-pass choice:
-
-- `routine` → `Agent(subagent_type: "developer", ...)`.
-- `strong` → `Agent(subagent_type: "developer-strong", ...)`.
-
-Pass the run directory in the spawn prompt so the worker knows where to self-log. Use `isolation: "worktree"` for changes touching multiple files or any migration.
-
-If the default `developer` returns `ESCALATE_TO_STRONG_DEVELOPER`, save the escalation as a message with type `escalation_request`, then respawn the same task on `developer-strong` with the original packet plus the escalation reason and any prior work attached.
-
-For slow Developer work (long builds, full test suites), spawn with `run_in_background: true` and continue routing.
-
-## Spawning Reviewer
-
-Default to `Agent(subagent_type: "reviewer", ...)`. Use `Agent(subagent_type: "reviewer-strong", ...)` directly for large/security-sensitive/data-loss-prone/concurrency-heavy/migration-related/dependency-risky/auth-related diffs, or after a failed review loop.
-
-If the default reviewer returns `ESCALATE_TO_STRONG_REVIEWER`, respawn on `reviewer-strong` with the escalation reason attached.
-
-## Spawning Researcher (Optional)
-
-`Agent(subagent_type: "researcher", ...)` is an optional read-only exploration agent — no Edit/Write tools, no strong tier, no new workflow state. Spawn it when understanding the codebase is its own chunk of work: during `pm_discovery` on a large or unfamiliar project before drafting the task packet, or when Developer/Reviewer sends an `exploration_request`.
-
-Pass a scoped assignment (exploration scope, concrete focus questions, depth hint) and the run directory — it self-logs an `exploration_report`. Because it is read-only, it can run in parallel with any other worker and never needs a worktree. It cannot write to the project: fold durable findings into `.multiagent/project-profile.md` yourself and attach the report when spawning workers who need it.
-
-## Parallel Spawning
-
-When the next Developer slice is independent of the current Reviewer pass (non-overlapping files, no shared state), spawn both in the same assistant turn with two `Agent` calls — they run in parallel. The same applies to independent Developer slices that touch non-overlapping files (use separate worktrees).
-
-Do not parallelize when the next slice depends on the current Reviewer's verdict, or on file changes still being staged.
-
-## Worker Self-Logging
-
-Workers (Developer, Developer-Strong, Reviewer, Reviewer-Strong, Researcher) self-log their own inter-agent messages via `python scripts/multiagent_files.py append-message --from-role <role> ...`. You do not log on their behalf. Always pass the run directory when spawning them so they can write to it.
-
-If a worker reports a save failure, record it in `run-summary.md` and decide whether to retry the spawn or surface the issue to the client.
-
-## Closeout
-
-When Reviewer returns PASS:
-
-1. Draft the client-facing closeout (concise: what was built, what was verified, residual risks).
-2. Log the closeout message.
-3. Mark the run complete in `run-summary.md` with final agent IDs.
-4. Mark the final `TaskCreate` task `completed`.
-5. Close idle worker agents if the runtime allows it.
-6. Close the run: `python scripts/multiagent_files.py close-run --root <project-root>`. This sets the terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `active-run.json`.
-
-## Deactivation (`/multiagent off`)
-
-When the client says to stop or turn off the multiagent workflow, run `python scripts/multiagent_files.py close-run --root <project-root>`. This sets the run's terminal state, removes the PM-mode marker blocks from the project's context files, and deletes `.multiagent/active-run.json` — the per-turn PM reminder stops immediately. Confirm the deactivation and continue as a normal session.
-
-## Resume (`/multiagent resume [run-name]`)
-
-After an interruption (usage limit, crash, closed session) — or when the client names a previous run — resume rather than restart:
-
-1. Pick the target run: the named `.multiagent/runs/<run-name>/` if given; otherwise `.multiagent/active-run.json`; otherwise the newest folder under `.multiagent/runs/`.
-2. If PM mode is not active for that run, re-activate it: `python scripts/multiagent_files.py activate-run --root <project-root> --run <run-dir>`. This restores `active-run.json` and the marker blocks, and works on closed runs too — run `set-state` to a working state when deliberately reopening a closed run.
-3. Read `run-summary.md` and the tail of `messages.jsonl` (plus `transcripts/subagent-events.jsonl` if present) to reconstruct what happened.
-4. Re-adopt PM's role, report the reconstructed state to the client, and continue from the recorded state. Do not redo work the message log shows as completed.
-
-The marker block in the project's context files means a fresh session already knows a run is active — offer to resume proactively when you see it.
-
-## Memory For Cross-Session Client Context
-
-Persistent client preferences — quality bar, communication style, tech-stack defaults, do-not-do rules — belong in the Claude Code auto-memory system at `~/.claude/projects/<slug>/memory/`, not in the per-run folder under `.multiagent/runs/...`. Use memory for state that should survive across runs and sessions; use the run folder for run-specific artifacts.
-
-## Slash Command
-
-`/multiagent <task>` is a shortcut that loads this skill with the task as initial input. See `claude-code/commands/multiagent.md` (Phase 5). The two paths are equivalent — the slash command is a UX convenience.
+The PM-mode marker block in the project's context files means a fresh session already knows a run is active — offer to resume proactively when you see it.
 
 ## Troubleshooting
 

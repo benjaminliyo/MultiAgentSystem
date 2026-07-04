@@ -10,6 +10,32 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-04 — Thin the workflow skills; routing detail lives only in the PM role
+
+### Decision
+
+Rewrite the three `multiagent-workflow` SKILL.md files (Claude Code, Codex, Antigravity) to cover only launch, entry points (`/multiagent`, `off`, `resume`), platform constraints, troubleshooting, and (Claude Code) the done standard. All routing detail — spawn tiers and escalation respawns, worktree/workspace isolation, parallel spawning, state tracking, worker self-logging, plan-mode gating, closeout, resume mechanics — is stated once, in the PM role file each skill tells the session to adopt, and the skills point at it instead of restating it. `claude-code/commands/multiagent.md` was retitled accordingly: the PM role file is the canonical operating doc for the run; the skill is the launch doc.
+
+### Why
+
+The skills had drifted into near-full duplicates of the PM role's "Routing And Run Management" section (Claude Code skill: 136 lines, ~60 of them routing detail also present in the installed `pm.md`). Because each skill instructs the session to adopt the role file, PM held **both** copies in context at runtime — double the tokens for the same instructions, and two wordings of every rule to keep in sync (the four-file fan-out tax was paid twice on every routing change). `AGENTS.md` already mandated the fix: "PM's 'Routing And Run Management' section in `roles/pm.md` is the single source of truth for routing detail — keep platform docs thin and pointed at it."
+
+What stays in the skills is exactly what must work before or without the role text: root-session adoption instructions (with the role file's path), the Scoped Autonomy preflight wording, `prepare-run` invocation and what PM-mode activation does, entry-point handling, platform launch constraints (Codex model policy and PM Adoption Shape; Antigravity's root-session permission-boundary warning, now surfaced at preflight so the client can relaunch with `--dangerously-skip-permissions` before the run starts), and troubleshooting. Codex kept the exact strings pinned by `test_codex_interactive_workflow_keeps_pm_in_root_session`.
+
+### Files affected
+
+- `claude-code/skill/multiagent-workflow/SKILL.md` — 136 → ~80 lines; cut Plan-Mode Contract, Spawning Developer/Reviewer/Researcher, Parallel Spawning, Worker Self-Logging, Closeout, Resume detail, and Memory sections (all present in `claude-code/agents/pm.md`); merged Slash Command/Deactivation/Resume into an "Entry Points" section.
+- `codex-skill/multiagent-workflow/SKILL.md` — 112 → ~95 lines; Launch Flow steps 9–19 and the Researcher paragraph collapsed into one deferral step; adoption step now names `~/.codex/agents/pm.toml` explicitly.
+- `antigravity/skill/multiagent-workflow/SKILL.md` — 93 → ~60 lines; cut the approval-gate, spawning, parallel, self-logging, and closeout sections (all in `antigravity/agents/pm.md`); dynamic-registration mechanics deferred to the role with the permission warning moved into the preflight step.
+- `claude-code/commands/multiagent.md` — two sentences updated so references match ("the PM role file is the canonical operating doc"; detail pointer now names the role's routing section).
+
+### Reversal triggers
+
+- If a platform's role file stops being reliably loadable at launch (e.g., a runtime that cannot read `~/.claude/agents/` / `~/.codex/agents/` / `~/.gemini/config/agents/` from the session), that platform's skill must become self-contained again.
+- If launch-time failures show sessions skipping role adoption and improvising routing, restore an abbreviated routing checklist to the affected skill rather than the full duplicate.
+
+---
+
 ## 2026-07-04 — PM gains Client Calibration for non-technical clients
 
 ### Decision
