@@ -26,7 +26,7 @@ The global `multiagent-workflow` skill is the recognition layer for short prompt
 Run the multiagent workflow for this project. Start with the PM agent.
 ```
 
-Without that skill or the full launch prompt, a root Codex session may search the target repo for multiagent docs instead of spawning the custom `pm` role.
+Without that skill or the full launch prompt, a root Codex session may search the target repo for multiagent docs instead of adopting PM mode.
 
 ## Installed Agents
 
@@ -40,13 +40,15 @@ Without that skill or the full launch prompt, a root Codex session may search th
 
 ## Recommended Use
 
-Spawn the `pm` custom agent. PM is the main-thread workflow agent and absorbs mechanical routing. After restarting Codex or opening a new thread, ask it to run the multiagent workflow:
+Use the `multiagent-workflow` skill so the main Codex session adopts PM's role. Do not launch PM as a separate child subagent for the interactive workflow; a spawned PM can be stopped or closed like any other agent thread, while PM mode is designed to persist until `close-run` or `/multiagent off`.
+
+After restarting Codex or opening a new thread, ask it to run the multiagent workflow:
 
 ```text
 Run the multiagent workflow for this project. Start with the PM agent.
 ```
 
-The main thread should spawn the `pm` agent first, which then spawns workers by name:
+The main thread acts as PM and spawns workers by name:
 
 ```text
 pm           # main thread

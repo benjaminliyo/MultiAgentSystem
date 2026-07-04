@@ -170,7 +170,7 @@ If a project thread does not recognize "Run the multiagent workflow":
 4. Restart Codex or open a fresh thread after install/update.
 5. Use the stronger prompt:
 ```text
-Use the multiagent-workflow skill. Spawn the custom pm agent using agent_type: pm.
+Use the multiagent-workflow skill. The main Codex session adopts PM's role; do not spawn a separate PM subagent.
 ```
 
 ### Claude Code

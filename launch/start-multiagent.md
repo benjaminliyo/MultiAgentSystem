@@ -5,7 +5,7 @@ Paste this into a Codex project thread after installing the custom agents:
 ```text
 Run the multiagent workflow for this project.
 
-Spawn the custom `pm` agent unless I provide an already-approved task packet. PM is the main-thread agent and owns mechanical routing in addition to product judgment (see CHANGELOG.md 2026-06-29 for why the earlier `multiagent-orchestrator` role was removed).
+The main Codex session adopts PM's role. Do not spawn a separate `pm` subagent for the interactive workflow. PM is the main-thread agent and owns mechanical routing in addition to product judgment (see CHANGELOG.md 2026-06-29 for why the earlier `multiagent-orchestrator` role was removed).
 
 Before spawning Developer, ask once for Scoped Autonomy for this run: workspace/project read-write for PM, Developer, and Reviewer. Treat that as approval for normal project edits, tests, docs, and `.multiagent/runs/...` artifacts. As part of the same preflight, resolve the project's canonical environment (.venv, conda, uv/poetry), record it in `.multiagent/project-profile.md`, and ask whether workers may install missing packages into that resolved environment without per-item approval (the package envelope). Still ask separately for writes outside the workspace, secrets, destructive cleanup outside the approved scope, package installs outside the envelope, deployments, external services, account changes, or global configuration changes.
 
@@ -19,7 +19,7 @@ Inside it, keep `run-summary.md`, `messages/`, and `transcripts/`. Each agent se
 
 Use this routing model:
 - PM clarifies product intent and produces a client-approved task packet.
-- PM acts as team lead, assigns work, tracks progress, and owns client closeout.
+- PM acts as team lead in the main Codex session, assigns work, tracks progress, and owns client closeout.
 - Developer owns technical design, implementation, tests, technical docs, and implementation report.
 - Reviewer acts like a test engineer/code reviewer and checks the diff, tests, task packet, and project profile.
 - Use `reviewer-strong` instead of `reviewer` when the review is large, security-sensitive, data-loss-prone, concurrency-heavy, migration-related, dependency-risky, authentication/authorization-related, or when a previous efficient review failed or requested escalation.

@@ -195,7 +195,7 @@ Reviewer owns:
    ```
    If the short prompt doesn't work, paste `launch/start-multiagent.md`.
 5. Approve Scoped Autonomy for the run when PM asks.
-6. PM creates the run folder and clarifies the client request, then drafts the task packet.
+6. The main Codex session adopts PM's role, creates the run folder, clarifies the client request, and drafts the task packet.
 7. Review and approve the task packet.
 8. PM spawns Developer (tier per `Suggested Developer Tier`), then Reviewer.
 9. Failed reviews go back to Developer until Reviewer returns PASS.
@@ -254,16 +254,16 @@ When a platform column changes, update this table and note the driver in `CHANGE
 
 ### Codex
 
-Custom agents define spawned roles, but they do not by themselves teach the root session what "run the multiagent workflow" means. The global `multiagent-workflow` skill bridges that trigger phrase to the custom `pm` agent.
+Custom agents define role files and spawned worker roles, but they do not by themselves teach the root session what "run the multiagent workflow" means. The global `multiagent-workflow` skill bridges that trigger phrase to sticky PM mode in the root session.
 
-If Codex searches the repo for "multiagent" or spawns a generic agent instead of `pm`, check:
+If Codex searches the repo for "multiagent", spawns a generic agent, or tries to launch PM as a child subagent, check:
 
 - `~/.codex/skills/multiagent-workflow/SKILL.md` exists.
 - `~/.codex/agents/pm.toml` exists.
 - The current subagent tool metadata lists `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and `researcher`. (The deprecated `multiagent-orchestrator` may still appear in old installs; harmless.)
 - Codex was restarted or a new thread was opened after installation.
 
-If those roles are listed but spawning `pm` fails with `spawn_agent could not resolve the child model for service tier validation`, the workflow is recognized but custom-agent startup is failing in Codex's model/service-tier validation. Confirm a built-in agent such as `default` can spawn in the same thread. Restart Codex or open a fresh thread with a supported Codex model selected, then retry `agent_type: "pm"`. If the same error persists while built-in agents still spawn, treat it as a Codex custom-agent runtime issue rather than a missing MultiAgentSystem install.
+If worker roles are listed but spawning a worker fails with `spawn_agent could not resolve the child model for service tier validation`, the workflow is recognized but custom-agent startup is failing in Codex's model/service-tier validation. Confirm a built-in agent such as `default` can spawn in the same thread. Restart Codex or open a fresh thread with a supported Codex model selected. If the same error persists while built-in agents still spawn, treat it as a Codex custom-agent runtime issue rather than a missing MultiAgentSystem install.
 
 ### Claude Code
 

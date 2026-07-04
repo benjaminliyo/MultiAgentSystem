@@ -10,6 +10,30 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-04 — Codex interactive workflow adopts PM in the root session
+
+### Decision
+
+Codex's `multiagent-workflow` skill and copy/paste launch prompts now tell the main Codex session to adopt PM's role for the interactive workflow instead of spawning the `pm` custom agent as a separate child subagent. The `pm.toml` file remains installed as role reference and for the future autonomous-loop scenario, but normal interactive routing spawns only Developer, Reviewer, and optional Researcher workers.
+
+### Why
+
+Live Codex testing showed that launching PM as a spawned custom agent makes PM a normal agent thread that can be stopped or closed mid-session. That contradicts the PM-led design: PM mode should persist through long sessions and interruptions until the user explicitly turns the workflow off (`/multiagent off`) or PM runs `close-run`. The existing helper lifecycle already supports the sticky design via `.multiagent/active-run.json`, marker blocks, and project hooks; the regression was in Codex-specific launch wording.
+
+### Files affected
+
+- `codex-skill/multiagent-workflow/SKILL.md` — root-session PM adoption is now the core rule; worker spawning and troubleshooting were rewritten around that contract.
+- `launch/start-multiagent.md`, `launch/start-pm-only.md` — copy/paste prompts no longer request a spawned PM child.
+- `CODEX-CUSTOM-AGENTS.md`, `codex-agents/INSTALL.md`, `README.md` — Codex setup and troubleshooting now distinguish sticky PM mode from spawned worker agents.
+- `tests/test_multiagent_files.py` — added a regression test that rejects the old Codex PM-spawn instructions.
+
+### Reversal triggers
+
+- If Codex adds a durable non-closable "main-thread custom agent" mode that can adopt `pm.toml` directly while retaining root-session routing and PM-mode lifecycle hooks, the interactive workflow can switch to that platform primitive.
+- If the autonomous-loop orchestrator is reintroduced, it may spawn PM as a child for non-interactive background runs only; that must remain separate from the interactive root-session PM workflow.
+
+---
+
 ## 2026-07-03 — Antigravity root-session interception limits subagent permissionMode
 
 ### Decision

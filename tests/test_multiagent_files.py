@@ -702,6 +702,29 @@ class MultiAgentFilesTests(unittest.TestCase):
         self.assertIn("[permissions.researcher.network]", researcher_text)
         self.assertIn("enabled = false", researcher_text)
 
+    def test_codex_interactive_workflow_keeps_pm_in_root_session(self):
+        skill_text = (REPO_ROOT / "codex-skill" / "multiagent-workflow" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        launch_text = (REPO_ROOT / "launch" / "start-multiagent.md").read_text(
+            encoding="utf-8"
+        )
+        pm_only_text = (REPO_ROOT / "launch" / "start-pm-only.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("main Codex session adopts PM's role", skill_text)
+        self.assertIn("do not spawn a separate `pm` subagent", skill_text)
+        self.assertNotIn('agent_type: "pm"', skill_text)
+        self.assertNotIn("Spawn the `pm` custom agent", skill_text)
+        self.assertNotIn("Spawn `pm` first", skill_text)
+
+        self.assertIn("main Codex session adopts PM's role", launch_text)
+        self.assertNotIn("Spawn the custom `pm` agent", launch_text)
+
+        self.assertIn("main Codex session adopts PM's role", pm_only_text)
+        self.assertNotIn("Spawn the custom `pm` agent", pm_only_text)
+
     def test_install_codex_skip_deploy_does_not_copy_to_home(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._make_install_codex_fixture(tmp)

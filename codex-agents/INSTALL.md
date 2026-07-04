@@ -71,7 +71,7 @@ Restart Codex or open a new thread, then in any project session:
 Run the multiagent workflow for this project. Start with the PM agent.
 ```
 
-The main thread should spawn the `pm` agent, which then spawns workers by name:
+The main Codex session adopts PM's role and then spawns workers by name. Do not launch PM as a separate child subagent for the interactive workflow; PM mode stays active until `close-run` or `/multiagent off`.
 
 ```text
 pm           # main thread
@@ -86,7 +86,7 @@ researcher   # optional, read-only exploration
 
 **Subagent types missing or not recognized.** Restart Codex or open a fresh thread. Codex loads custom-agent TOMLs at session start.
 
-**`spawn_agent could not resolve the child model for service tier validation`.** The workflow is recognized but Codex custom-agent startup is failing in its own model/service-tier validation. Confirm a built-in agent (like `default`) can spawn in the same thread. If it can, restart Codex with a supported model selected, then retry `agent_type: "pm"`. If the error persists while built-in agents work, treat it as a Codex runtime issue rather than a MultiAgentSystem install problem.
+**`spawn_agent could not resolve the child model for service tier validation`.** The workflow is recognized but Codex custom-agent startup is failing in its own model/service-tier validation for a worker agent. Confirm a built-in agent (like `default`) can spawn in the same thread. If it can, restart Codex with a supported model selected, then retry the worker handoff. If the error persists while built-in agents work, treat it as a Codex runtime issue rather than a MultiAgentSystem install problem.
 
 **Rendered TOMLs have no `[[skills.config]]` entries.** No `SKILL.md` files were discovered under `~/.codex/skills/` or `~/.codex/plugins/`. The install still works; the roles just won't reference any local skills. Install skills into `~/.codex/skills/` and re-run the installer.
 
