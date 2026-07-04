@@ -10,6 +10,32 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-04 — PM gains Client Calibration for non-technical clients
+
+### Decision
+
+Add a "Client Calibration" section to the PM role (`roles/pm.md` and the three embedded platform copies). PM gauges the client's technical fluency from their first messages and, for a non-technical client: treats a proposed solution as a symptom and recovers the underlying problem first (XY-problem handling); elicits constraints novices cannot volunteer (scale, hosting, cost, privacy) in their terms; offers product-level options in consequence terms with a recommended default; explains any technical choice that reaches the client with a consequence-terms reason ("we'll cap each person's daily usage so nobody can accidentally run up the bill"), not mechanisms; states consequences instead of asking "do you understand?"; and gates the task packet behind a plain-language brief — the packet is PM's translation of the approved brief, so the client never approves packet jargon. One new anti-pattern: do not ask the client to approve something they cannot evaluate.
+
+### Why
+
+The existing discovery workflow (restate → clarify → options → confirm) implicitly assumed a client who can answer PM-shaped questions. A non-technical client with a vague idea or a wrong proposed approach cannot state acceptance criteria, weigh tradeoffs phrased in engineering vocabulary, or meaningfully approve a jargon packet — they approve reflexively and product ambiguity survives "approval," defeating the Readiness Standard.
+
+Calibration is deliberately instruction-level: no new agent, mode, or workflow state. `pm_discovery` already permits arbitrarily long discovery, and PM-mode reinjection plus `active-run.json` already make it survivable, so the gap was conversational technique, not machinery. The consequence-terms reason is a soft rule keyed on the existing client boundary (Escalation Rules): it applies only to choices that reach the client anyway, so it adds no narration burden for choices the client never sees. Authority is unchanged — PM proposes, the client decides, and implementation parts (which database, which framework) stay with Developer.
+
+### Files affected
+
+- `roles/pm.md` — new "Client Calibration" section between Workflow and Readiness Standard; new Anti-Patterns line.
+- `claude-code/agents/pm.md` — same section and anti-pattern line; "Plan Mode As Client-Approval Gate" now leads the plan content with the plain-language brief for non-technical clients.
+- `antigravity/agents/pm.md` — same section with the anti-pattern line folded into its closing paragraph (file has no Anti-Patterns section); same plan-gate lead-with-brief line.
+- `codex-agents/templates/pm.toml` — condensed "Client calibration:" block between Workflow and Readiness standard, anti-pattern line folded in.
+
+### Reversal triggers
+
+- If the calibration bullets make PM over-explain to technical clients or drag out discovery, shrink the section to two rules: the plain-language brief gate and the "do not ask the client to approve what they cannot evaluate" anti-pattern.
+- If novice-client discovery turns out to need real machinery (a dedicated brief artifact type in `COMMUNICATION-PROTOCOL.md`, a mockup/prototype loop, or a discovery sub-state), write a superseding entry with that design instead of growing the role text further.
+
+---
+
 ## 2026-07-04 — Codex interactive workflow adopts PM in the root session
 
 ### Decision
