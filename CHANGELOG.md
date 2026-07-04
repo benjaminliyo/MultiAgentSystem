@@ -10,6 +10,29 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-04 — Install scripts tolerate Python 3.8 (backported from a university-server deployment)
+
+### Decision
+
+Make the install/validate tooling run on older Python interpreters instead of hard-requiring 3.11: `scripts/_common.py` falls back to the third-party `tomli` package when the stdlib `tomllib` (3.11+) is missing, and `scripts/install.py` gains a `_removesuffix()` polyfill replacing `str.removesuffix()` (3.9+). Tests use the same polyfill and fallback. Python 3.11+ remains the recommended baseline; on older interpreters without `tomli`, installs still work but TOML validation and Codex skill scoping degrade to warnings, and the warning text now names `pip install tomli` as the remedy.
+
+### Why
+
+A deployment of this repo on a university server (system Python 3.8) failed at install on `str.removesuffix` and lost TOML validation to the missing `tomllib`. The fix was applied on that copy and proven there; this entry backports it so the canonical repo installs anywhere a shared/cluster machine pins an old system Python. Both changes are behavior-identical on modern interpreters: the `tomllib` import still wins on 3.11+, and the polyfill matches `str.removesuffix` semantics.
+
+### Files affected
+
+- `scripts/_common.py` — `tomli` fallback in the `tomllib` import; `parse_toml` error message names the `tomli` remedy.
+- `scripts/install.py` — `_removesuffix()` helper replaces three `str.removesuffix()` call sites; two `tomllib unavailable` warnings name the `tomli` remedy.
+- `tests/test_multiagent_files.py` — `from __future__ import annotations`, polyfill at nine call sites, `tomli` fallback in the overlay TOML-validity test.
+- `README.md` — install prerequisite note updated.
+
+### Reversal triggers
+
+- If the tooling later adopts a genuinely 3.11-only feature (so old-interpreter support is no longer honest), drop the polyfills and restore the hard 3.11+ requirement in the same change.
+
+---
+
 ## 2026-07-04 — Thin the workflow skills; routing detail lives only in the PM role
 
 ### Decision

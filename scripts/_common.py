@@ -14,7 +14,10 @@ from pathlib import Path
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback.
-    tomllib = None  # type: ignore[assignment]
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:
+        tomllib = None  # type: ignore[assignment]
 
 
 # Active agents per platform. The `multiagent-orchestrator` role was deprecated
@@ -64,7 +67,9 @@ def require_dir(path: Path, label: str) -> Path:
 
 def parse_toml(path: Path) -> dict:
     if tomllib is None:
-        raise MultiAgentFileError("Python tomllib is unavailable; use Python 3.11+ for TOML validation")
+        raise MultiAgentFileError(
+            "Python tomllib is unavailable; use Python 3.11+ or `pip install tomli` for TOML validation"
+        )
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:

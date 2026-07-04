@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import subprocess
 import sys
@@ -112,7 +114,7 @@ class MultiAgentFilesTests(unittest.TestCase):
 
             toml = 'name = "{name}"\n'
             for name in install.CANONICAL_AGENT_FILES["codex"]:
-                content = toml.format(name=name.removesuffix(".toml"))
+                content = toml.format(name=install._removesuffix(name, ".toml"))
                 (repo_agents / name).write_text(content)
                 (installed_agents / name).write_text(content)
 
@@ -138,7 +140,7 @@ class MultiAgentFilesTests(unittest.TestCase):
 
             toml = 'name = "{name}"\n'
             for name in install.CANONICAL_AGENT_FILES["codex"]:
-                content = toml.format(name=name.removesuffix(".toml"))
+                content = toml.format(name=install._removesuffix(name, ".toml"))
                 (repo_agents / name).write_text(content, encoding="utf-8")
                 (installed_agents / name).write_text(content, encoding="utf-8")
             (installed_agents / "researcher.toml").write_text("name = [\n", encoding="utf-8")
@@ -168,7 +170,7 @@ class MultiAgentFilesTests(unittest.TestCase):
 
             toml = 'name = "{name}"\nmodel = "gpt-5.4-mini"\n'
             for name in install.CANONICAL_AGENT_FILES["codex"]:
-                content = toml.format(name=name.removesuffix(".toml"))
+                content = toml.format(name=install._removesuffix(name, ".toml"))
                 (repo_agents / name).write_text(content, encoding="utf-8")
                 (installed_agents / name).write_text(content, encoding="utf-8")
             (installed_agents / "researcher.toml").write_text(
@@ -273,7 +275,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             "Body for {name}.\n"
         )
         for filename in install.CANONICAL_AGENT_FILES["claude-code"]:
-            agent_name = filename.removesuffix(".md")
+            agent_name = install._removesuffix(filename, ".md")
             content = agent_template.format(name=agent_name)
             (repo_agents / filename).write_text(content, encoding="utf-8")
             (installed_agents / filename).write_text(content, encoding="utf-8")
@@ -497,7 +499,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             "Body for {name}.\n"
         )
         for filename in install.CANONICAL_AGENT_FILES["antigravity"]:
-            agent_name = filename.removesuffix(".md")
+            agent_name = install._removesuffix(filename, ".md")
             content = agent_template.format(name=agent_name)
             (repo_agents / filename).write_text(content, encoding="utf-8")
             (installed_agents / filename).write_text(content, encoding="utf-8")
@@ -637,7 +639,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             'description = "Test {name} agent."\n'
         )
         for filename in install.CANONICAL_AGENT_FILES["codex"]:
-            role = filename.removesuffix(".toml")
+            role = install._removesuffix(filename, ".toml")
             content = template_body.format(name=role)
             if role == "researcher":
                 content += (
@@ -925,7 +927,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             "---\nname: {name}\ndescription: {name} agent.\n---\n\nBody. context-maintenance.\n"
         )
         for fn in install.CANONICAL_AGENT_FILES["claude-code"]:
-            (agents_src / fn).write_text(agent_body.format(name=fn.removesuffix(".md")), encoding="utf-8")
+            (agents_src / fn).write_text(agent_body.format(name=install._removesuffix(fn, ".md")), encoding="utf-8")
 
         (skill_src / "SKILL.md").write_text(
             "---\nname: multiagent-workflow\ndescription: workflow.\n---\nBody.\n",
@@ -1094,7 +1096,7 @@ class MultiAgentFilesTests(unittest.TestCase):
 
         agent_body = "---\nname: {name}\ndescription: {name}.\npermissionMode: plan\n---\nBody. context-maintenance.\n"
         for fn in install.CANONICAL_AGENT_FILES["antigravity"]:
-            (agents_src / fn).write_text(agent_body.format(name=fn.removesuffix(".md")), encoding="utf-8")
+            (agents_src / fn).write_text(agent_body.format(name=install._removesuffix(fn, ".md")), encoding="utf-8")
 
         (skill_src / "SKILL.md").write_text(
             "---\nname: multiagent-workflow\ndescription: workflow.\n---\nBody.\n",
@@ -1404,7 +1406,7 @@ class MultiAgentFilesTests(unittest.TestCase):
             fixture = self._make_install_codex_fixture(tmp)
             # Give templates a developer_instructions block the overlay can join.
             for filename in install.CANONICAL_AGENT_FILES["codex"]:
-                role = filename.removesuffix(".toml")
+                role = install._removesuffix(filename, ".toml")
                 (fixture["template_dir"] / filename).write_text(
                     f'name = "{role}"\n'
                     'developer_instructions = """\n'
@@ -1430,7 +1432,10 @@ class MultiAgentFilesTests(unittest.TestCase):
                 dev_text.rindex('"""'),
             )
             # Still valid TOML.
-            import tomllib
+            try:
+                import tomllib
+            except ModuleNotFoundError:
+                import tomli as tomllib
             parsed = tomllib.loads(dev_text)
             self.assertIn("Personal: prefer my local linter skill.", parsed["developer_instructions"])
 

@@ -46,6 +46,13 @@ from scripts._common import (
 )
 
 
+def _removesuffix(s: str, suffix: str) -> str:
+    """str.removesuffix polyfill; needed while installs run on Python 3.8."""
+    if suffix and s.endswith(suffix):
+        return s[: -len(suffix)]
+    return s
+
+
 # ---------------------------------------------------------------------------
 # validate-install
 # ---------------------------------------------------------------------------
@@ -122,7 +129,7 @@ def _validate_install_codex(
     _validate_shared_repo_files(repo, missing, warnings)
 
     if tomllib is None:
-        warnings.append("tomllib unavailable; TOML validation requires Python 3.11+")
+        warnings.append("tomllib unavailable; TOML validation requires Python 3.11+ or `pip install tomli`")
 
     return {
         "platform": "codex",
@@ -407,7 +414,7 @@ def load_role_skill_map(repo_root: Path) -> tuple[dict[str, Any] | None, list[st
     local map never disables the tracked one.
     """
     if tomllib is None:
-        return None, ["tomllib unavailable (Python 3.11+ required); skill scoping disabled"]
+        return None, ["tomllib unavailable (Python 3.11+ or `pip install tomli` required); skill scoping disabled"]
 
     warnings: list[str] = []
     map_path = repo_root / "skills" / "role-skill-map.toml"
@@ -543,7 +550,7 @@ def install_codex(
         if not template_path.exists():
             warnings.append(f"Template missing: {template_path}")
             continue
-        role = name.removesuffix(".toml")
+        role = _removesuffix(name, ".toml")
         template_text = template_path.read_text(encoding="utf-8")
         if not template_text.endswith("\n"):
             template_text += "\n"
@@ -672,7 +679,7 @@ def install_claude_code(
         if not src.exists():
             warnings.append(f"Missing agent file in repo: {src}")
             continue
-        role = name.removesuffix(".md")
+        role = _removesuffix(name, ".md")
         text = src.read_text(encoding="utf-8")
         if skill_map is not None and available_skills:
             candidates = role_skill_candidates(skill_map, role)
@@ -851,7 +858,7 @@ def install_antigravity(
             continue
         text = src.read_text(encoding="utf-8")
 
-        role = name.removesuffix(".md")
+        role = _removesuffix(name, ".md")
         if role != "pm" and subagent_permission_mode != "plan":
             target = "permissionMode: plan"
             count = text.count(target)

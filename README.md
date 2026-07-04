@@ -24,7 +24,7 @@ Every platform now has a one-command install and update. From this repo's root:
 ./scripts/install.sh claude-code    # or: codex, antigravity, all
 ```
 
-Re-run the same command after `git pull` to update. Requires Python 3.11+.
+Re-run the same command after `git pull` to update. Requires Python 3.11+; older interpreters back to 3.8 (common on shared university/cluster servers) also work — `pip install tomli` there to keep TOML validation and Codex skill scoping.
 
 | Platform     | Install doc                       | Spawn entry point                                |
 |--------------|-----------------------------------|--------------------------------------------------|
