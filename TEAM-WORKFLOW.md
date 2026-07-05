@@ -109,6 +109,14 @@ As part of the same preflight, PM records the project's resolved Python/runtime 
 
 Default run approval does not cover broad machine access, writes outside the workspace, global CLI configuration changes, secrets, destructive cleanup outside the approved workspace scope, package installs outside the approved envelope, deployments, hosted services, or external account changes. Those still require explicit escalation.
 
+The preflight is a policy agreement, not a permission mechanism. No platform's permission engine reads the conversation: the grant defines the envelope the agents agree to respect (and that PM escalates beyond), while per-call prompting is governed by harness-level configuration. The mechanical half is platform-specific:
+
+- **Claude Code**: the installer injects `permissionMode: bypassPermissions` into the installed non-PM subagents, so worker tool calls run without prompts. PM runs on the main thread, so its own tool calls still follow the session's permission mode and allowlists.
+- **Antigravity**: the installer applies the same frontmatter substitution, but subagent tool calls execute inside the root session's permission boundary, so full worker autonomy additionally requires launching the root session with `--dangerously-skip-permissions` — a deliberate opt-in, not a default.
+- **Codex**: the session's sandbox and approval configuration governs; there is no per-agent permission mode to install.
+
+If the mechanical layer is missing (for example, an install that predates the permission-mode injection), the Scoped Autonomy decision is still recorded in the run log, but the harness keeps prompting per call. That is an install issue, not a reason to widen session-level permissions by hand.
+
 ## Progress Management
 
 PM should request status when:

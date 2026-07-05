@@ -1022,6 +1022,81 @@ class MultiAgentFilesTests(unittest.TestCase):
             pm_canonical = (fx["repo"] / "claude-code" / "agents" / "pm.md").read_text(encoding="utf-8")
             self.assertEqual(pm_installed, pm_canonical)
 
+    def test_install_claude_code_injects_subagent_permission_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+
+            payload = install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=False,
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            expected_switched = [
+                "developer",
+                "developer-strong",
+                "reviewer",
+                "reviewer-strong",
+                "researcher",
+            ]
+            self.assertEqual(sorted(payload["switched_permissions"]), sorted(expected_switched))
+
+            # PM runs on the main thread; its installed copy stays untouched.
+            pm_installed = (fx["claude_home"] / "agents" / "pm.md").read_text(encoding="utf-8")
+            self.assertNotIn("permissionMode:", pm_installed)
+
+            dev_installed = (fx["claude_home"] / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: bypassPermissions", dev_installed)
+
+            # Canonical source stays clean.
+            dev_canonical = (fx["repo"] / "claude-code" / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertNotIn("permissionMode:", dev_canonical)
+
+    def test_install_claude_code_permission_mode_default_injects_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+
+            payload = install.install_claude_code(
+                repo_root=fx["repo"],
+                claude_home=fx["claude_home"],
+                install_hooks=False,
+                subagent_permission_mode="default",
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            self.assertEqual(payload["switched_permissions"], [])
+            dev_installed = (fx["claude_home"] / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertNotIn("permissionMode:", dev_installed)
+
+    def test_install_claude_code_cli_permission_mode_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fx = self._make_claude_code_source_fixture(tmp)
+            repo = fx["repo"]
+            home = fx["claude_home"]
+
+            code = install.main([
+                "install-claude-code",
+                "--repo-root", str(repo),
+                "--claude-home", str(home),
+                "--no-hooks",
+            ])
+            self.assertEqual(code, 0)
+            dev_text = (home / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: bypassPermissions", dev_text)
+
+            code = install.main([
+                "install-claude-code",
+                "--repo-root", str(repo),
+                "--claude-home", str(home),
+                "--no-hooks",
+                "--claude-subagent-permission-mode", "acceptEdits",
+            ])
+            self.assertEqual(code, 0)
+            dev_text2 = (home / "agents" / "developer.md").read_text(encoding="utf-8")
+            self.assertIn("permissionMode: acceptEdits", dev_text2)
+            self.assertNotIn("permissionMode: bypassPermissions", dev_text2)
+
     def test_install_claude_code_wires_hooks_into_new_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             fx = self._make_claude_code_source_fixture(tmp)

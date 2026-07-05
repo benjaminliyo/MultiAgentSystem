@@ -632,10 +632,32 @@ def inject_skills_frontmatter(text: str, skill_names: list[str]) -> str:
     return text
 
 
+def inject_permission_mode_frontmatter(text: str, mode: str) -> str:
+    """Insert a `permissionMode:` line into agent frontmatter.
+
+    Canonical Claude Code agent files ship without `permissionMode` (standard
+    prompting); this runs at deploy time only, mirroring the Antigravity
+    installer's Scoped Autonomy substitution. Returns text unchanged when the
+    frontmatter already declares a mode or there is no frontmatter.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return text
+    for index in range(1, len(lines)):
+        stripped = lines[index].strip()
+        if stripped == "---":
+            merged = lines[:index] + [f"permissionMode: {mode}"] + lines[index:]
+            return "\n".join(merged) + ("\n" if text.endswith("\n") else "")
+        if stripped.startswith("permissionMode:"):
+            return text
+    return text
+
+
 def install_claude_code(
     repo_root: Path,
     claude_home: Path | None = None,
     install_hooks: bool = True,
+    subagent_permission_mode: str = "bypassPermissions",
 ) -> dict[str, Any]:
     """Install the multi-agent workflow into ~/.claude/.
 
@@ -660,6 +682,7 @@ def install_claude_code(
     installed: list[str] = []
     warnings: list[str] = []
     skills_injected: dict[str, list[str]] = {}
+    switched_list: list[str] = []
 
     # Copy the skill and command before discovering installed skills, so a
     # first install already sees multiagent-workflow for `skills:` injection.
@@ -681,6 +704,17 @@ def install_claude_code(
             continue
         role = _removesuffix(name, ".md")
         text = src.read_text(encoding="utf-8")
+        # PM runs on the main thread (the session adopts its role), so its
+        # permission mode is whatever the user launched the session with.
+        if role != "pm" and subagent_permission_mode != "default":
+            switched = inject_permission_mode_frontmatter(text, subagent_permission_mode)
+            if switched == text:
+                warnings.append(
+                    f"permissionMode not injected into {name}: frontmatter missing or already sets a mode"
+                )
+            else:
+                text = switched
+                switched_list.append(role)
         if skill_map is not None and available_skills:
             candidates = role_skill_candidates(skill_map, role)
             if candidates is not None:
@@ -710,6 +744,7 @@ def install_claude_code(
         "claude_home": str(home),
         "installed": installed,
         "skills_injected": skills_injected,
+        "switched_permissions": switched_list,
         "hooks": hooks_result,
         "warnings": warnings,
         "complete": bool(installed) and not warnings,
@@ -905,6 +940,7 @@ def install_dispatch(
     antigravity_home: Path | None = None,
     install_hooks: bool = True,
     antigravity_subagent_permission_mode: str = "bypassPermissions",
+    claude_subagent_permission_mode: str = "bypassPermissions",
 ) -> dict[str, Any]:
     """Run one or all platform installers and return a combined payload."""
     if platform not in SUPPORTED_PLATFORMS and platform != "all":
@@ -925,6 +961,7 @@ def install_dispatch(
                     repo_root,
                     claude_home=claude_home,
                     install_hooks=install_hooks,
+                    subagent_permission_mode=claude_subagent_permission_mode,
                 )
             else:
                 result = install_antigravity(
@@ -989,6 +1026,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip merging hook wiring into ~/.claude/settings.json.",
     )
+    install_claude.add_argument(
+        "--claude-subagent-permission-mode",
+        default="bypassPermissions",
+        choices=["bypassPermissions", "acceptEdits", "default"],
+        help="Permission mode injected into deployed subagents (default: bypassPermissions; 'default' injects nothing).",
+    )
 
     install_ag = subparsers.add_parser(
         "install-antigravity",
@@ -1035,6 +1078,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["bypassPermissions", "plan"],
         help="Permission mode for deployed subagents (default: bypassPermissions).",
     )
+    install_all.add_argument(
+        "--claude-subagent-permission-mode",
+        default="bypassPermissions",
+        choices=["bypassPermissions", "acceptEdits", "default"],
+        help="Permission mode injected into deployed Claude Code subagents (default: bypassPermissions; 'default' injects nothing).",
+    )
     return parser
 
 
@@ -1053,6 +1102,7 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.repo_root),
                 claude_home=Path(args.claude_home) if args.claude_home else None,
                 install_hooks=not args.no_hooks,
+                subagent_permission_mode=args.claude_subagent_permission_mode,
             )
         elif args.command == "install-antigravity":
             payload = install_antigravity(
@@ -1069,6 +1119,7 @@ def main(argv: list[str] | None = None) -> int:
                 antigravity_home=Path(args.antigravity_home) if args.antigravity_home else None,
                 install_hooks=not args.no_hooks,
                 antigravity_subagent_permission_mode=args.antigravity_subagent_permission_mode,
+                claude_subagent_permission_mode=args.claude_subagent_permission_mode,
             )
         else:
             payload = validate_install(

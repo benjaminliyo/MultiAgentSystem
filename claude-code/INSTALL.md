@@ -35,6 +35,8 @@ That's it. Restart Claude Code and `/multiagent <task>` works in any project.
 
 The installer also consults `skills/role-skill-map.toml`: skills installed under `~/.claude/skills/` that match a role's candidates are written into that installed agent's `skills:` frontmatter (preloaded at spawn). And if a gitignored `local/overlays/roles/<role>.md` exists, its content is appended to the installed agent body — personal additions without touching canonical files.
 
+The installer additionally injects `permissionMode: bypassPermissions` into the frontmatter of the installed non-PM subagents (`developer`, `developer-strong`, `reviewer`, `reviewer-strong`, `researcher`) so worker tool calls run without per-call permission prompts (Scoped Autonomy). Claude Code honors this frontmatter mode for subagents directly — the main session keeps its own permission mode, and PM's installed copy is left untouched. To soften or disable, pass `--claude-subagent-permission-mode acceptEdits` (auto-accept edits only, Bash still prompts) or `--claude-subagent-permission-mode default` (inject nothing) to `install.py`; canonical files always ship without a `permissionMode`.
+
 The agents are: `pm`, `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and the optional read-only `researcher`. PM is the main-thread agent and absorbs mechanical routing. See `CHANGELOG.md` (2026-06-29) for why there's no `multiagent-orchestrator`.
 
 The hook wiring (five events, all silent outside active multiagent runs):
@@ -101,6 +103,8 @@ cp claude-code/commands/multiagent.md ~/.claude/commands/multiagent.md
 
 For hooks: open `claude-code/settings.example.json`, edit the absolute paths to your repo checkout, and merge the `hooks` block into `~/.claude/settings.json`.
 
+For Scoped Autonomy: the manual copy skips the installer's `permissionMode: bypassPermissions` injection, so subagents will prompt on every tool call. Add `permissionMode: bypassPermissions` to the frontmatter of each installed agent file **except `pm.md`** (edit the copies in `~/.claude/agents/`, not the canonical files).
+
 ## Uninstall
 
 ```powershell
@@ -129,6 +133,8 @@ Also remove the hook entries from `~/.claude/settings.json` if you wired them.
 **`/multiagent` is not a recognized command.** The command file isn't in `~/.claude/commands/` or the session needs restart. Re-run the installer and restart Claude Code.
 
 **`subagent_type: "pm"` (or other roles) is not available.** Agent files aren't in `~/.claude/agents/` or the session needs restart. Same fix.
+
+**Subagents ask for permission on every tool call.** The installed agent files predate the `permissionMode` injection (or were copied manually). Check that `~/.claude/agents/developer.md` has `permissionMode: bypassPermissions` in its frontmatter; if not, re-run the installer and restart Claude Code. Note the main session's mode still governs PM's own tool calls — only the spawned workers get the injected mode.
 
 **The skill isn't auto-invoked when I say "run the multiagent workflow."** Verify `~/.claude/skills/multiagent-workflow/SKILL.md` exists. Verify its frontmatter (`name` and `description`) is intact — the `description` is what Claude Code uses to decide when to surface the skill. You can also invoke explicitly: "Use the multiagent-workflow skill."
 

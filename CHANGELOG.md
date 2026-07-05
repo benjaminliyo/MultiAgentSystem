@@ -10,6 +10,32 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-05 — Claude Code installer injects permissionMode: bypassPermissions into non-PM subagents
+
+### Decision
+
+Bring the Claude Code install to permission parity with Antigravity: `install_claude_code` now injects `permissionMode: bypassPermissions` into the frontmatter of the installed copies of `developer`, `developer-strong`, `reviewer`, `reviewer-strong`, and `researcher`. PM's installed copy is untouched (PM runs on the main thread, so the session's own permission mode governs it), and canonical `claude-code/agents/*.md` still ship without any `permissionMode`. A new `--claude-subagent-permission-mode` flag (`bypassPermissions` default, `acceptEdits`, or `default` = inject nothing) mirrors the existing `--antigravity-subagent-permission-mode` opt-out.
+
+### Why
+
+Field report from testing the workflow on Claude Code: subagents prompted for permission on every tool call, defeating Scoped Autonomy. Antigravity got permission handling at install time (substituting `permissionMode: plan` → `bypassPermissions`), but the Claude Code installer never grew the equivalent, and agents without a frontmatter `permissionMode` inherit the parent conversation's prompting behavior. Claude Code supports `permissionMode` in subagent frontmatter and — unlike Antigravity — applies it to statically loaded subagents without requiring the root session to bypass permissions, so injection at deploy time is the whole fix. Injection (rather than shipping the mode in canonical files, Antigravity-style substitution) matches how the Claude Code installer already handles `skills:` frontmatter: canonical ships clean, per-machine decisions happen at deploy.
+
+### Files affected
+
+- `scripts/install.py` — `inject_permission_mode_frontmatter()`, `subagent_permission_mode` parameter on `install_claude_code`, `claude_subagent_permission_mode` on `install_dispatch`, CLI flags on `install-claude-code` and `install`; payload gains `switched_permissions` (same key as the Antigravity payload).
+- `tests/test_multiagent_files.py` — injection, opt-out, and CLI-flag tests.
+- `AGENTS.md` / `CLAUDE.md`, `claude-code/INSTALL.md` — document the injection, the manual-copy caveat, and the new flag.
+- `TEAM-WORKFLOW.md` "Scoped Autonomy Mode" — corrects the standing implication that the conversational preflight grant suppresses prompts by itself: the preflight is policy; per-platform mechanical enforcement (Claude Code frontmatter injection, Antigravity injection + root-session flag, Codex sandbox/approval config) is now spelled out here as the canonical reference.
+- `claude-code/skill/multiagent-workflow/SKILL.md` — preflight step notes the policy/mechanism split and the re-run-installer remedy when workers still prompt (mirrors the platform-constraint note the Antigravity skill got on 2026-07-03).
+- `ORCHESTRATION.md` "Permission Guidance" — one-line pointer to the canonical enforcement description.
+
+### Reversal triggers
+
+- If Claude Code changes subagent permission semantics (e.g., frontmatter `permissionMode` stops overriding the parent's default mode, or a scoped-allowlist mechanism lands that beats blanket bypass), revisit the injected mode.
+- If unattended `bypassPermissions` workers prove too risky in practice, flip the default to `acceptEdits` and let users opt up.
+
+---
+
 ## 2026-07-04 — Cross-platform resume: markers always cover both AGENTS.md and CLAUDE.md; activate-run gains --project-hooks
 
 ### Decision

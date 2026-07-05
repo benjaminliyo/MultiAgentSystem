@@ -18,7 +18,7 @@ PM owns product judgment AND mechanical routing. The earlier dedicated `multiage
 ## Launch Sequence
 
 1. **Adopt PM's role.** Read `~/.claude/agents/pm.md` (or the canonical copy). Follow it for the rest of the run.
-2. **Scoped Autonomy preflight.** Ask the client once whether the run may use workspace/project read-write access for PM, Developer, and Reviewer, and whether commands inside the workspace may run without per-call confirmation. Also resolve the project's canonical environment, record it in `.multiagent/project-profile.md`, and ask the one package question (may workers install into that env without per-item approval?). Note the decisions; you'll save them in the run-summary.
+2. **Scoped Autonomy preflight.** Ask the client once whether the run may use workspace/project read-write access for PM, Developer, and Reviewer, and whether commands inside the workspace may run without per-call confirmation. Also resolve the project's canonical environment, record it in `.multiagent/project-profile.md`, and ask the one package question (may workers install into that env without per-item approval?). Note the decisions; you'll save them in the run-summary. The grant sets the policy envelope only — prompt suppression is mechanical: installed worker agents carry `permissionMode: bypassPermissions` in their frontmatter (injected by the installer), while your own main-thread tool calls follow the session's permission mode. If workers still prompt per call, the install predates the injection — tell the client to re-run the installer and restart, rather than working around it.
 3. **Create the run folder and activate PM mode.**
    ```bash
    python scripts/multiagent_files.py prepare-run \

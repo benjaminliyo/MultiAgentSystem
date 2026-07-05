@@ -237,7 +237,7 @@ Recommended default:
 - Reviewer: read the full project, write review reports and test artifacts; code edits only when explicitly assigned.
 - Researcher (optional): read the full project; write nothing except its own run-folder messages via the logging helper.
 
-Avoid unrestricted access as the normal baseline. Prefer one Scoped Autonomy approval for workspace/project read-write at run start, then escalate only when a task requires broader filesystem, network, external-app, deployment, secret, or global-configuration permissions.
+Avoid unrestricted access as the normal baseline. Prefer one Scoped Autonomy approval for workspace/project read-write at run start, then escalate only when a task requires broader filesystem, network, external-app, deployment, secret, or global-configuration permissions. The approval is policy, not mechanism — how each platform mechanically suppresses per-call prompts is described in `TEAM-WORKFLOW.md` "Scoped Autonomy Mode".
 
 ## Model And Usage Guidance
 

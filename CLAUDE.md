@@ -78,7 +78,7 @@ Installed copies live at:
 ~/.claude/commands/multiagent.md
 ```
 
-When changing `claude-code/agents/*.md`, copy the updated `.md` files to `~/.claude/agents/`.
+When changing `claude-code/agents/*.md`, re-run the installer (or copy the updated `.md` files to `~/.claude/agents/`). Note that the installer injects `permissionMode: bypassPermissions` into the installed copies of the non-PM subagents (`developer`, `reviewer`, etc.) to support Scoped Autonomy — without it, every subagent tool call falls back to the main session's permission prompts. If copying files manually, apply the same frontmatter change to the installed copies. Unlike Antigravity, Claude Code honors the frontmatter mode for statically loaded subagents directly, so the root session does not need `--dangerously-skip-permissions`. Soften or disable with `--claude-subagent-permission-mode acceptEdits|default`.
 
 When changing `claude-code/skill/multiagent-workflow/`, copy it to `~/.claude/skills/multiagent-workflow/`.
 
