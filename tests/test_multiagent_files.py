@@ -186,6 +186,41 @@ class MultiAgentFilesTests(unittest.TestCase):
                 payload["missing"],
             )
 
+    def test_codex_validate_install_checks_all_canonical_skills(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            codex_home = Path(tmp) / "codex"
+            repo_agents = repo / "codex-agents"
+            installed_agents = codex_home / "agents"
+            workflow_src = repo / "codex-skill" / "multiagent-workflow"
+            find_skill_src = repo / "codex-skill" / "find-skill"
+            workflow_dst = codex_home / "skills" / "multiagent-workflow"
+            for path in (repo_agents, installed_agents, workflow_src, find_skill_src, workflow_dst):
+                path.mkdir(parents=True)
+            for skill_dir, name in (
+                (workflow_src, "multiagent-workflow"),
+                (find_skill_src, "find-skill"),
+                (workflow_dst, "multiagent-workflow"),
+            ):
+                (skill_dir / "SKILL.md").write_text(
+                    f"---\nname: {name}\ndescription: {name}.\n---\nBody.\n",
+                    encoding="utf-8",
+                )
+
+            toml = 'name = "{name}"\n'
+            for name in install.CANONICAL_AGENT_FILES["codex"]:
+                content = toml.format(name=install._removesuffix(name, ".toml"))
+                (repo_agents / name).write_text(content, encoding="utf-8")
+                (installed_agents / name).write_text(content, encoding="utf-8")
+
+            payload = install.validate_install(repo, codex_home, platform="codex")
+
+            self.assertFalse(payload["complete"])
+            self.assertTrue(
+                any("find-skill" in entry for entry in payload["missing"]),
+                payload["missing"],
+            )
+
     def test_developer_strong_is_a_valid_message_role(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -909,6 +944,57 @@ class MultiAgentFilesTests(unittest.TestCase):
 
             self.assertTrue(payload["complete"], payload)
             self.assertEqual(payload["missing"], [])
+
+    def test_install_codex_copies_extra_skills_and_bundles_find_skill(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = self._make_install_codex_fixture(tmp)
+            workflow_src = fixture["repo"] / "codex-skill" / "multiagent-workflow"
+            find_skill_src = fixture["repo"] / "codex-skill" / "find-skill"
+            scripts_src = fixture["repo"] / "scripts"
+            skills_src = fixture["repo"] / "skills"
+            for path in (workflow_src, find_skill_src, scripts_src, skills_src):
+                path.mkdir(parents=True)
+            (workflow_src / "SKILL.md").write_text(
+                "---\nname: multiagent-workflow\ndescription: workflow.\n---\nBody.\n",
+                encoding="utf-8",
+            )
+            (find_skill_src / "SKILL.md").write_text(
+                "---\nname: find-skill\ndescription: search and install skills.\n---\nBody.\n",
+                encoding="utf-8",
+            )
+            (scripts_src / "find_skill.py").write_text("# engine\n", encoding="utf-8")
+            (skills_src / "registry.toml").write_text("schema_version = 1\n", encoding="utf-8")
+            self._write_role_skill_map(
+                fixture["repo"],
+                "[always]\n"
+                'candidates = ["multiagent-workflow", "skill-installer", "find-skill"]\n'
+                "[roles.pm]\n"
+                'candidates = []\n'
+                "[roles.developer]\n"
+                'candidates = []\n'
+                "[roles.developer-strong]\n"
+                'candidates = []\n'
+                "[roles.reviewer]\n"
+                'candidates = []\n'
+                "[roles.reviewer-strong]\n"
+                'candidates = []\n'
+                "[roles.researcher]\n"
+                'candidates = []\n',
+            )
+
+            payload = install.install_codex(
+                repo_root=fixture["repo"],
+                codex_home=fixture["codex_home"],
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            installed_skill = fixture["codex_home"] / "skills" / "find-skill"
+            self.assertTrue((installed_skill / "SKILL.md").exists())
+            self.assertTrue((installed_skill / "find_skill.py").exists())
+            self.assertTrue((installed_skill / "registry.toml").exists())
+            for filename in install.CANONICAL_AGENT_FILES["codex"]:
+                text = (fixture["repo"] / "codex-agents" / filename).read_text(encoding="utf-8")
+                self.assertIn("find-skill/SKILL.md", text)
 
     # ---- install_claude_code tests ----
 
@@ -1751,6 +1837,147 @@ class MultiAgentFilesTests(unittest.TestCase):
                 )
                 self.assertTrue(payload["complete"], (name, payload))
                 self.assertIn(platform_arg, payload["results"])
+
+
+class FindSkillTests(unittest.TestCase):
+    """scripts/find_skill.py — registry search and install guardrails."""
+
+    def _write_registry(self, tmp: str) -> Path:
+        registry = Path(tmp) / "registry.toml"
+        registry.write_text(
+            "schema_version = 1\n\n"
+            "[[skills]]\n"
+            'name = "xlsx"\n'
+            'description = "Create and edit Excel spreadsheets."\n'
+            'category = "a document-formatting skill"\n'
+            'keywords = ["excel", "spreadsheet", "table"]\n'
+            'source_repo = "https://example.invalid/repo"\n'
+            'source_path = "skills/xlsx"\n'
+            'trust = "curated"\n\n'
+            "[[skills]]\n"
+            'name = "systematic-debugging"\n'
+            'description = "Structured root-cause debugging."\n'
+            'category = "a systematic-debugging skill"\n'
+            'keywords = ["debugging", "root cause", "bug"]\n'
+            'source_repo = "https://example.invalid/repo"\n'
+            'source_path = "skills/systematic-debugging"\n'
+            'trust = "curated"\n',
+            encoding="utf-8",
+        )
+        return registry
+
+    def test_search_ranks_keyword_match_first(self):
+        from scripts import find_skill
+
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = self._write_registry(tmp)
+            entries = find_skill.load_registry(registry)
+            tokens = find_skill._tokens("excel spreadsheet formulas")
+            scores = {
+                entry["name"]: find_skill.score_entry(entry, tokens)
+                for entry in entries
+            }
+            self.assertGreater(scores["xlsx"], scores["systematic-debugging"])
+            self.assertEqual(scores["systematic-debugging"], 0)
+
+    def test_install_refuses_unknown_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = self._write_registry(tmp)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve().parent.parent / "scripts" / "find_skill.py"),
+                    "--registry",
+                    str(registry),
+                    "install",
+                    "not-in-registry",
+                    "--platform",
+                    "claude-code",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("not in the registry", result.stderr)
+
+    def test_installer_copies_extra_skills_and_bundles_find_skill(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            claude_home = Path(tmp) / "claude"
+            agents_src = repo / "claude-code" / "agents"
+            workflow_src = repo / "claude-code" / "skill" / "multiagent-workflow"
+            find_skill_src = repo / "claude-code" / "skill" / "find-skill"
+            commands_src = repo / "claude-code" / "commands"
+            scripts_src = repo / "scripts"
+            skills_src = repo / "skills"
+            for d in (agents_src, workflow_src, find_skill_src, commands_src, scripts_src, skills_src, claude_home):
+                d.mkdir(parents=True)
+            for fn in install.CANONICAL_AGENT_FILES["claude-code"]:
+                (agents_src / fn).write_text(
+                    f"---\nname: {install._removesuffix(fn, '.md')}\ndescription: agent.\n---\nBody.\n",
+                    encoding="utf-8",
+                )
+            (workflow_src / "SKILL.md").write_text(
+                "---\nname: multiagent-workflow\ndescription: workflow.\n---\nBody.\n",
+                encoding="utf-8",
+            )
+            (find_skill_src / "SKILL.md").write_text(
+                "---\nname: find-skill\ndescription: search and install skills.\n---\nBody.\n",
+                encoding="utf-8",
+            )
+            (commands_src / "multiagent.md").write_text("# /multiagent\n", encoding="utf-8")
+            (scripts_src / "find_skill.py").write_text("# engine\n", encoding="utf-8")
+            (skills_src / "registry.toml").write_text("schema_version = 1\n", encoding="utf-8")
+
+            payload = install.install_claude_code(
+                repo_root=repo,
+                claude_home=claude_home,
+                install_hooks=False,
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            installed_skill = claude_home / "skills" / "find-skill"
+            self.assertTrue((installed_skill / "SKILL.md").exists())
+            self.assertTrue((installed_skill / "find_skill.py").exists())
+            self.assertTrue((installed_skill / "registry.toml").exists())
+
+    def test_installer_copies_extra_skills_and_bundles_find_skill_antigravity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            antigravity_home = Path(tmp) / "gemini"
+            agents_src = repo / "antigravity" / "agents"
+            workflow_src = repo / "antigravity" / "skill" / "multiagent-workflow"
+            find_skill_src = repo / "antigravity" / "skill" / "find-skill"
+            scripts_src = repo / "scripts"
+            skills_src = repo / "skills"
+            for d in (agents_src, workflow_src, find_skill_src, scripts_src, skills_src, antigravity_home):
+                d.mkdir(parents=True)
+            for fn in install.CANONICAL_AGENT_FILES["antigravity"]:
+                (agents_src / fn).write_text(
+                    f"---\nname: {install._removesuffix(fn, '.md')}\ndescription: agent.\npermissionMode: plan\n---\nBody.\n",
+                    encoding="utf-8",
+                )
+            (workflow_src / "SKILL.md").write_text(
+                "---\nname: multiagent-workflow\ndescription: workflow.\n---\nBody.\n",
+                encoding="utf-8",
+            )
+            (find_skill_src / "SKILL.md").write_text(
+                "---\nname: find-skill\ndescription: search and install skills.\n---\nBody.\n",
+                encoding="utf-8",
+            )
+            (scripts_src / "find_skill.py").write_text("# engine\n", encoding="utf-8")
+            (skills_src / "registry.toml").write_text("schema_version = 1\n", encoding="utf-8")
+
+            payload = install.install_antigravity(
+                repo_root=repo,
+                antigravity_home=antigravity_home,
+            )
+
+            self.assertTrue(payload["complete"], payload)
+            installed_skill = antigravity_home / "skills" / "find-skill"
+            self.assertTrue((installed_skill / "SKILL.md").exists())
+            self.assertTrue((installed_skill / "find_skill.py").exists())
+            self.assertTrue((installed_skill / "registry.toml").exists())
 
 
 if __name__ == "__main__":

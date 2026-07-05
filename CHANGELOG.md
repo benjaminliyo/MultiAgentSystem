@@ -10,6 +10,137 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-05 — PM proposes baseline promotion for mid-run skill installs at closeout
+
+### Decision
+
+An approved tier-2 install lands in the platform skills directory but never joins a tier-1 baseline automatically — and on Codex, an unmapped skill drops out of the per-role hard allowlist in future sessions entirely. The PM role now closes this gap at run closeout: if any skills were installed during the run, PM proposes promotion into `skills/role-skill-map.toml` per skill, **with PM's own recommendation** (promote when the need is categorical and recurs for the role; skip when task-specific, one-off, or overlapping an existing baseline). Client decides; on approval PM edits the map and reminds the client to re-run the installer. Added to `roles/pm.md` Skill Self-Check, mirrored to all three platform pm files, cross-referenced from `docs/skills-framework.md` "Role-Skill Map".
+
+### Why
+
+Client question after the find-skill rollout: "if a role requested a new skill to be installed, will it be added to the tier 1 list?" It wasn't — the promotion step was implicit manual curation, the same silent-decay pattern the 2026-07-05 mechanical-anchors entry fixed elsewhere. Making it a named closeout obligation keeps the PM-proposes/client-decides authority split while ensuring the decision point actually occurs. The client explicitly asked for PM to bring a recommendation rather than a bare question.
+
+### Files affected
+
+- `roles/pm.md`, `claude-code/agents/pm.md`, `antigravity/agents/pm.md`, `codex-agents/templates/pm.toml` — "Baseline promotion at closeout" paragraph in the Skill Discovery section (Antigravity copy also drops the stale "does not ship a default" parenthetical).
+- `docs/skills-framework.md` — short cross-reference under "Role-Skill Map".
+
+### Reversal triggers
+
+- If closeout proposals become noise (clients rubber-stamping every promotion), fold the recommendation into the closeout summary as a one-liner instead of a per-skill question.
+
+---
+
+## 2026-07-05 — Google Antigravity find-skill wrapper and dynamic skill installer
+
+### Decision
+
+Implemented the deterministic search-and-install `find-skill` capability on Google Antigravity. The platform adapter now ships the repo `find-skill` wrapper at `antigravity/skill/find-skill/SKILL.md`. The Antigravity installer (`scripts/install.py`) automatically copies all canonical skills under `antigravity/skill/` dynamically, checks that each directory contains a `SKILL.md` before copying (to prevent copying stray directories), and bundles the shared `scripts/find_skill.py` engine and `skills/registry.toml` curated registry into the installed `$HOME/.gemini/config/skills/find-skill/` directory.
+
+We also confirmed two key platform findings:
+1. **No native catalog/marketplace**: Google Antigravity has no agent-queryable marketplace. Layer 3 of the search order in the wrapper is designated as "None on this platform" and falls back to Layer 4 (public search).
+2. **Session startup discovery**: Freshly installed skills require starting a new Antigravity/`agy` session to be discovered.
+
+Additionally, to prevent permission mode issues, we documented that workers only propose candidates via `skill_need` messages, and the PM main thread executes the actual install commands.
+
+### Why
+
+The skills framework requires a search-and-install capability to support tier-2 niche skill discovery without hard-blocking. Implementing the wrapper and bundling logic on Antigravity achieves functional parity with Claude Code and Codex, providing a self-contained installation on user machines without requiring a checkout of the repository path.
+
+### Files affected
+
+- `antigravity/skill/find-skill/SKILL.md` - new Antigravity wrapper skill.
+- `scripts/install.py` - `install_antigravity` rewritten to copy skills dynamically, bundle `find-skill`, and use `_canonical_skill_dirs` helper; `_validate_install_antigravity` updated to dynamically validate all canonical skills.
+- `tests/test_multiagent_files.py` - added `test_installer_copies_extra_skills_and_bundles_find_skill_antigravity` unit test.
+- `antigravity/INSTALL.md` - updated manual-copy instructions with bundle caveats.
+- `docs/find-skill-implementation-guide.md` - resolved Antigravity open questions section with confirmed platform findings.
+- `skills/find-skill.md`, `docs/skills-framework.md` - updated status from pending to installed/completed for Antigravity.
+- `CHANGELOG.md` - this entry.
+
+### Reversal triggers
+
+- If Google Antigravity adds a native skill marketplace or hot-reloading skill discovery mid-session, update the wrapper and installation instructions to leverage the platform features.
+- If dynamic subagent tool execution permissions change, revisit how `git clone` or install commands are routed.
+
+---
+
+## 2026-07-05 — Codex find-skill wrapper installed by default
+
+### Decision
+
+The Codex adapter now ships the repo `find-skill` wrapper at `codex-skill/find-skill/SKILL.md`. The Codex installer copies every canonical skill under `codex-skill/`, bundles `scripts/find_skill.py` and `skills/registry.toml` into the installed `~/.codex/skills/find-skill/` directory, then scans installed skills before generating role TOMLs. That means the generated `[[skills.config]]` allowlists can include `find-skill` on a first install rather than requiring a second installer run.
+
+The wrapper uses the shared engine for installed-skill lookup and curated-registry search, delegates Codex native catalog lookup to the standard preinstalled `skill-installer` system skill, and treats public search as propose-only. Codex should be restarted or opened in a fresh thread after skill installs or updates.
+
+### Why
+
+The skills framework needs tier-2 discovery to survive Codex's hard per-role skill allowlist. Relying only on the system `skill-installer` covers the OpenAI catalog but misses the repo's deterministic curated registry; relying only on the repo engine would duplicate Codex's native catalog behavior. The thin wrapper keeps both paths without forking catalog logic.
+
+### Files affected
+
+- `codex-skill/find-skill/SKILL.md` - new Codex wrapper.
+- `scripts/install.py` - Codex installer copies all canonical Codex skills, bundles `find-skill`, and validates all canonical Codex skill dirs.
+- `tests/test_multiagent_files.py` - Codex validation and bundle-copy regression tests.
+- `codex-agents/INSTALL.md`, `CODEX-CUSTOM-AGENTS.md`, `docs/skills-framework.md`, `skills/find-skill.md`, `docs/find-skill-implementation-guide.md` - docs updated from planned to installed.
+
+### Reversal triggers
+
+- If Codex's `skill-installer` grows first-class curated-registry support, collapse the wrapper into the system skill instead of maintaining two entry points.
+- If Codex starts hot-loading newly installed skills mid-session, update the wrapper and install docs to remove the restart/new-thread requirement.
+
+---
+
+## 2026-07-05 — Executed evidence required for review PASS; Verification Plan added to the task packet
+
+### Decision
+
+Reviews must verify by execution, not by reading. Reviewer roles (both tiers, all platforms) gain an "Executed Evidence" standard: every acceptance criterion marked MET must cite the command run and the output observed; code-reading-only checks are labeled `Static-only` and cannot carry a PASS for user-visible or security-sensitive behavior; a frontend deliverable without runnable UI/E2E tests is a FAIL with the missing tests as the defect (the reviewer does not improvise manual QA to compensate); a fully-mocked suite does not prove an integration flow; browser tools, where a platform has them, are optional spot-checks, never required and never a substitute. Developer roles gain the mirror obligation: user-facing deliverables ship framework-native UI tests, a one-command E2E smoke for the critical journey on full-stack tasks, and at least one real-path test per integration boundary. The task packet gains a `## Verification Plan` section (PM-authored: how the Reviewer verifies each criterion by execution), and PM may dispatch an optional frontend-focused second review pass on UI-heavy tasks — same reviewer role, findings feed the single owning verdict. We explicitly did **not** split into separate frontend/backend reviewer roles: the seam between surfaces is where integration bugs live, and it must have one owner.
+
+### Why
+
+Field report from an 8-task Antigravity + Gemini 3.5 Flash run (video_pipeline_app): all reviews returned PASS while shipping obvious login-flow bugs (a malformed OAuth login URL, a session token passed via query param and lost on page refresh, a crash on missing OAuth email). The run artifacts show why: review "verification" was code reading plus the developer's own 7-test fully-mocked suite; the frontend was "verified" with `py_compile` and icon-size checks; zero UI tests existed. Step 6 used reviewer-strong and still passed — tier escalation cannot fix a verification-method gap, especially on single-model platforms where -strong differs only by prompt. Judgment-based standards ("verification adequate for the risk") collapse on flash-class models; executable checklists (run the plan, cite the output) survive them.
+
+### Files affected
+
+- `roles/reviewer.md`, `roles/developer.md`, `roles/developer-strong.md` — Executed Evidence section, workflow step, test-deliverable rules, anti-patterns.
+- `claude-code/agents/{reviewer,reviewer-strong,developer,developer-strong}.md`, `antigravity/agents/{same}.md`, `codex-agents/templates/{same}.toml` — mirrored (condensed in the self-contained -strong/Codex copies).
+- `templates/task-packet.md`, `roles/pm.md` + platform pm files — `## Verification Plan` section, PM quality-bar rule, optional frontend review pass.
+
+### Reversal triggers
+
+- If executed-evidence reviews prove too slow/expensive on trivial tasks, scope the requirement to user-visible and security-sensitive criteria only (the Static-only label already provides the mechanism).
+- If the optional frontend pass turns into de-facto dual ownership of verdicts, remove it in favor of packet-level checklists only.
+
+---
+
+## 2026-07-05 — Skills framework gets mechanical anchors: packet-template fix, run-start skills inventory, shipped find-skill
+
+### Decision
+
+Three changes that convert the skills framework from instruction-only to mechanically anchored. (1) **Template bug fix:** the inline task-packet shape in `roles/pm.md` (and all platform pm copies) omitted `## Suggested Skills` — contradicting `templates/task-packet.md` and the role's own Skill Self-Check section; the section (with tier subsections) is now in the inline shape. (2) **Run-start skills inventory:** `prepare-run`/`activate-run` now embed a per-platform installed-skills snapshot into the PM-mode marker block, including an explicit `search-and-install capability: MISSING` flag that PM must raise to the client at preflight. (3) **Shipped find-skill capability:** a concrete implementation now lives in the repo — shared deterministic engine `scripts/find_skill.py` (search/list-installed/install), curated registry `skills/registry.toml` (search order: installed → curated registry → platform catalog → public search, public results propose-only), and a Claude Code wrapper `claude-code/skill/find-skill/` installed automatically and bundled self-contained (engine + registry copied next to SKILL.md). Codex/Antigravity wrappers are delegated to those platforms' agents via `docs/find-skill-implementation-guide.md`. Approval flow unchanged: find-skill finds candidates; installs still route skill_need → PM → client within the install budget.
+
+### Why
+
+Same video_pipeline_app field report: across 8 runs there were zero `skill_need` messages and zero `Suggested Skills` sections — the weak-model PM followed the (buggy) inline template verbatim and dropped every instruction-level skills obligation, and the fresh Antigravity install had no search-and-install capability for tier 2 to use anyway. The contrast inside the same run is the design lesson: package management (which has mechanical anchors — env resolution recorded at preflight, envelope question) worked; the skills flow (instruction-only on Antigravity) failed silently. Graceful degradation must be *visible* state the PM is confronted with every turn, not a behavior the model has to remember. Supersedes the "no runnable artifact ships in this repo" stance in `skills/find-skill.md` (2026-07-02 skills-framework entry): a capability the framework requires but nobody ships is structurally dead on fresh installs.
+
+### Files affected
+
+- `roles/pm.md`, `claude-code/agents/pm.md`, `antigravity/agents/pm.md`, `codex-agents/templates/pm.toml` — inline packet shape gains `## Suggested Skills` + `## Verification Plan`.
+- `scripts/multiagent_files.py` — `skills_inventory_lines()`, marker block gains the inventory section.
+- `scripts/find_skill.py`, `skills/registry.toml`, `claude-code/skill/find-skill/SKILL.md` — new.
+- `scripts/install.py` — claude-code install copies all canonical skill dirs and bundles engine+registry into installed find-skill; validator iterates all canonical skills.
+- `docs/find-skill-implementation-guide.md` — new; instructions for the Codex/Antigravity implementers.
+- `docs/skills-framework.md`, `skills/find-skill.md` — platform capability tables updated.
+- `tests/test_multiagent_files.py` — FindSkillTests (search ranking, install refusal, bundle copy).
+
+### Reversal triggers
+
+- If the marker-block inventory bloats context or goes stale enough to mislead (mid-run installs), move it to a `session-start` hook computation instead of a prepare-run snapshot.
+- If the curated registry rots (upstream repos moving), shrink it to categories + known collections and lean on the platform-catalog layer.
+- If Codex's `skill-installer` fully covers layers 2–4 there, drop the Codex wrapper rather than maintain two search paths.
+
+---
+
 ## 2026-07-05 — Claude Code installer injects permissionMode: bypassPermissions into non-PM subagents
 
 ### Decision

@@ -1,6 +1,6 @@
 # find-skill — Required Search-And-Install Capability
 
-**This file is not a runnable skill artifact.** It documents the *capability* the tier-2 flow in `docs/skills-framework.md` depends on. Any concrete installed skill that fulfills the capability counts. Do not look for a `~/.claude/skills/find-skill/SKILL.md` in this repo — installing one that satisfies the capability is up to the user.
+**This file documents the capability contract**, not a specific artifact. Any concrete installed skill that fulfills the capability counts. Since 2026-07-05 the repo also ships a concrete implementation: the shared engine `scripts/find_skill.py` + curated registry `skills/registry.toml`, wrapped per platform (Codex: `codex-skill/find-skill/`, installed automatically; Claude Code: `claude-code/skill/find-skill/`, installed automatically; Antigravity: see `docs/find-skill-implementation-guide.md`).
 
 ## Purpose
 
@@ -22,9 +22,9 @@ A skill that only searches (but can't install) still helps tier 2 — the worker
 
 | Platform     | Concrete skill                                                                 | Status       |
 |--------------|--------------------------------------------------------------------------------|--------------|
-| Codex        | `skill-installer` (ships with standard Codex skill catalog)                    | Recommended. |
-| Claude Code  | No default ships in-box. Check `~/.claude/skills/` for anything with search + install semantics. Community options may exist. | Optional; degrade gracefully if none installed. |
-| Antigravity  | No default ships in-box. Check the Antigravity/Gemini skills path (`~/.gemini/config/skills/` or equivalent). | Optional; degrade gracefully if none installed. |
+| Codex        | Repo-shipped `find-skill` (`codex-skill/find-skill/`, installed by `install --platform codex`; bundles `scripts/find_skill.py` + `skills/registry.toml`; delegates Codex-catalog lookup to preinstalled `skill-installer`). | Installed by default. |
+| Claude Code  | Repo-shipped `find-skill` (`claude-code/skill/find-skill/`, installed by `install --platform claude-code`; bundles `scripts/find_skill.py` + `skills/registry.toml`). | Installed by default. |
+| Antigravity  | Repo-shipped `find-skill` (`antigravity/skill/find-skill/`, installed by `install --platform antigravity`; bundles `scripts/find_skill.py` + `skills/registry.toml`). | Installed by default. |
 
 If a platform later ships a default, or if you install a community skill that satisfies the capability, add it to the row. The framework doesn't care about the artifact name.
 

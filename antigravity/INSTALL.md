@@ -125,17 +125,28 @@ If Python isn't available or you want to see exactly what the installer does:
 ```powershell
 New-Item -ItemType Directory -Force -Path $HOME\.gemini\config\agents | Out-Null
 New-Item -ItemType Directory -Force -Path $HOME\.gemini\config\skills\multiagent-workflow | Out-Null
+New-Item -ItemType Directory -Force -Path $HOME\.gemini\config\skills\find-skill | Out-Null
 
 Copy-Item antigravity\agents\*.md $HOME\.gemini\config\agents\ -Force
 Copy-Item antigravity\skill\multiagent-workflow\SKILL.md $HOME\.gemini\config\skills\multiagent-workflow\SKILL.md -Force
+
+# find-skill is self-contained and needs its engine + registry bundled next to SKILL.md:
+Copy-Item antigravity\skill\find-skill\SKILL.md $HOME\.gemini\config\skills\find-skill\SKILL.md -Force
+Copy-Item scripts\find_skill.py $HOME\.gemini\config\skills\find-skill\find_skill.py -Force
+Copy-Item skills\registry.toml $HOME\.gemini\config\skills\find-skill\registry.toml -Force
 ```
 
 **Bash:**
 
 ```bash
-mkdir -p ~/.gemini/config/agents ~/.gemini/config/skills/multiagent-workflow
+mkdir -p ~/.gemini/config/agents ~/.gemini/config/skills/multiagent-workflow ~/.gemini/config/skills/find-skill
 cp antigravity/agents/*.md ~/.gemini/config/agents/
 cp antigravity/skill/multiagent-workflow/SKILL.md ~/.gemini/config/skills/multiagent-workflow/SKILL.md
+
+# find-skill is self-contained and needs its engine + registry bundled next to SKILL.md:
+cp antigravity/skill/find-skill/SKILL.md ~/.gemini/config/skills/find-skill/SKILL.md
+cp scripts/find_skill.py ~/.gemini/config/skills/find-skill/find_skill.py
+cp skills/registry.toml ~/.gemini/config/skills/find-skill/registry.toml
 ```
 
 ## Troubleshooting

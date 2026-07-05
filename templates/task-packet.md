@@ -36,6 +36,12 @@ Each item should be specific enough for the Reviewer to verify.
 
 - 
 
+## Verification Plan
+
+How the Reviewer verifies each acceptance criterion **by executing it** — concrete commands, scripts, or user-journey steps. Criteria that describe user-visible behavior must map to an executable check (shipped tests, an E2E smoke script, or explicit steps through the running app). If the check does not exist yet, list building it here as a required deliverable of this task.
+
+- 
+
 ## Questions Resolved
 
 Record client decisions that shaped the task.

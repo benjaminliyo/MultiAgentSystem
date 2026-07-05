@@ -28,13 +28,18 @@ PM is the main-thread agent. PM owns product clarity, task assignment, progress 
 - `claude-code/INSTALL.md` - how Claude Code agents, skill, and slash command are installed.
 - `codex-agents/templates/*.toml` - canonical Codex custom-agent templates. The install script generates `codex-agents/*.toml` with local skill paths substituted in; the generated files are gitignored.
 - `codex-skill/multiagent-workflow/` - canonical Codex recognition skill.
+- `codex-skill/find-skill/` - canonical Codex find-skill wrapper (search-and-install capability; delegates Codex-catalog lookup to `skill-installer` when present).
 - `claude-code/agents/*.md` - canonical Claude Code subagent definitions.
 - `claude-code/skill/multiagent-workflow/` - canonical Claude Code workflow skill.
+- `claude-code/skill/find-skill/` - canonical Claude Code find-skill wrapper. Installers copy every canonical skill dir and bundle `scripts/find_skill.py` + `skills/registry.toml` into the installed find-skill so it is self-contained on machines without the repo checkout.
 - `claude-code/commands/multiagent.md` - canonical Claude Code `/multiagent` slash command.
 - `antigravity/INSTALL.md` - how Antigravity agents and skill are installed.
 - `antigravity/agents/*.md` - canonical Antigravity subagent definitions.
 - `antigravity/skill/multiagent-workflow/SKILL.md` - canonical Antigravity workflow skill.
+- `antigravity/skill/find-skill/` - canonical Antigravity find-skill wrapper (no native catalog on this platform; installs are executed by the PM main thread after approval; a new session is required before a freshly installed skill is discovered).
 - `roles/*.md` - shared role instructions used by all platforms.
+- `skills/registry.toml` - curated skill registry: search layer 2 of the find-skill order (installed → curated registry → platform catalog → public search, public results propose-only). Concrete skill names belong here, not in role files. Verify `source_repo`/`source_path` before adding entries.
+- `docs/find-skill-implementation-guide.md` - shared contracts and per-platform notes for the find-skill wrappers (implemented on all three platforms as of 2026-07-05; retained as the contract reference for wrapper changes and future platforms).
 - `skills/role-skill-map.toml` - editable per-role skill defaults. Codex installer enforces it as a hard allowlist; Claude Code installer injects matched skills into the installed agents' `skills:` frontmatter (preload); Antigravity is instruction-level only. The gitignored `local/role-skill-map.toml` merges additively on top for personal per-role additions.
 - `claude-code/hooks/` - canonical hook scripts shared by all platforms: `session-start-load-profile` (project profile), `user-prompt-pm-mode` (per-turn PM-role reinjection while a run is active; `.ps1`/`.sh` emit plain text for Claude Code/Codex, `.py` emits Antigravity's required `{"additionalContext": ...}` JSON contract), `subagent-log.py` (mechanical spawn/finish logging: SubagentStart/SubagentStop on Claude Code and Codex; PreToolUse/PostToolUse with matcher `invoke_subagent` on Antigravity), `stop-warn-unclosed-run`.
 - `codex/hooks.json` / `antigravity/hooks.json` - hook-config templates with different schemas (Codex: Claude-style `{"hooks": {...}}`; Antigravity: named hook groups, events limited to PreInvocation/PostInvocation/PreToolUse/PostToolUse/Stop). `prepare-run --project-hooks codex|antigravity` renders them into `<project>/.codex/hooks.json` / `<project>/.agents/hooks.json`.
@@ -43,6 +48,7 @@ PM is the main-thread agent. PM owns product clarity, task assignment, progress 
 - `launch/*.md` - copy/paste launch prompts (Codex).
 - `templates/` - shared task, report, and message templates.
 - `scripts/multiagent_files.py` - runtime helper agents invoke during a run (prepare-run, append-message, status, set-state, close-run, activate-run). `prepare-run` also activates PM mode: writes `.multiagent/active-run.json` and inserts marker blocks (`<!-- multiagent:begin/end -->`) into the project's context files — always both AGENTS.md and CLAUDE.md (creating missing ones as marker-only stubs so a run started on one platform is visible on the other), plus GEMINI.md when it exists; `close-run` reverses both and deletes marker-only stubs; `activate-run` restores PM mode for any existing run (resume, including closed runs) and accepts `--project-hooks codex|antigravity` for cross-platform resume when the target platform's project hooks were never rendered.
+- `scripts/find_skill.py` - shared deterministic engine behind the find-skill capability (`search` / `list-installed` / `install`). Knows all three platforms' skill dirs; `install` only accepts registry entries and reminds that PM/client approval is required first. Also feeds the run-start skills inventory in the PM-mode marker block (`skills_inventory_lines` in `multiagent_files.py`).
 - `scripts/install.py` - install and validation for every platform (`install --platform <name>`, `validate-install`).
 - `scripts/install.ps1` / `scripts/install.sh` - one-line wrappers around `install.py`.
 - `scripts/_common.py` - constants and low-level helpers shared by runtime and install.
@@ -66,6 +72,8 @@ When changing `codex-agents/templates/*.toml`, re-run the Codex install script s
 
 When changing `codex-skill/multiagent-workflow`, copy it to `~/.codex/skills/multiagent-workflow/`.
 
+When changing `codex-skill/find-skill/`, `scripts/find_skill.py`, or `skills/registry.toml`, re-run the installer — the installed `~/.codex/skills/find-skill/` is a self-contained bundle (SKILL.md + engine + registry), so manual copies must include all three files.
+
 After changing installed agents or skills, tell the user to restart Codex or open a new thread.
 
 ### Claude Code
@@ -81,6 +89,8 @@ Installed copies live at:
 When changing `claude-code/agents/*.md`, re-run the installer (or copy the updated `.md` files to `~/.claude/agents/`). Note that the installer injects `permissionMode: bypassPermissions` into the installed copies of the non-PM subagents (`developer`, `reviewer`, etc.) to support Scoped Autonomy — without it, every subagent tool call falls back to the main session's permission prompts. If copying files manually, apply the same frontmatter change to the installed copies. Unlike Antigravity, Claude Code honors the frontmatter mode for statically loaded subagents directly, so the root session does not need `--dangerously-skip-permissions`. Soften or disable with `--claude-subagent-permission-mode acceptEdits|default`.
 
 When changing `claude-code/skill/multiagent-workflow/`, copy it to `~/.claude/skills/multiagent-workflow/`.
+
+When changing `claude-code/skill/find-skill/`, `scripts/find_skill.py`, or `skills/registry.toml`, re-run the installer — the installed `~/.claude/skills/find-skill/` is a self-contained bundle (SKILL.md + engine + registry), so manual copies must include all three files.
 
 When changing `claude-code/commands/multiagent.md`, copy it to `~/.claude/commands/multiagent.md`.
 
@@ -100,6 +110,8 @@ Installed copies live at:
 When changing `antigravity/agents/*.md`, copy the updated `.md` files to `~/.gemini/config/agents/`. Note that the installer automatically modifies the installed subagents (`developer`, `reviewer`, etc.) to run with `permissionMode: bypassPermissions` to support Scoped Autonomy. If copying files manually, you should apply the same change to the installed copies. Note two platform constraints: frontmatter permission modes apply only to statically loaded agents (`define_subagent` discards them), and subagent tool calls run inside the root session's permission boundary, so full subagent autonomy additionally requires launching the root session with `--dangerously-skip-permissions`. That flag bypasses every permission prompt for the whole session — treat it as a deliberate opt-in for trusted workspaces, not a default. See `antigravity/INSTALL.md` "Permission Configuration & Scoped Autonomy".
 
 When changing `antigravity/skill/multiagent-workflow/SKILL.md`, copy it to `~/.gemini/config/skills/multiagent-workflow/SKILL.md`.
+
+When changing `antigravity/skill/find-skill/`, `scripts/find_skill.py`, or `skills/registry.toml`, re-run the installer — the installed `~/.gemini/config/skills/find-skill/` is a self-contained bundle (SKILL.md + engine + registry), so manual copies must include all three files.
 
 After changing installed agents or skills, start a new Antigravity session.
 

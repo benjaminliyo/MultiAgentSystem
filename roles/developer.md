@@ -174,6 +174,14 @@ Verification may include:
 - manual smoke checks
 - focused regression commands
 
+For user-facing deliverables, tests are part of the deliverable, not an accessory:
+
+- A frontend change ships with framework-native UI tests (the framework's headless app-testing harness or component tests) covering the changed behavior.
+- A multi-service or full-stack task ships at least one scripted end-to-end smoke covering the critical user journey (login → core action → result), runnable by the Reviewer with a single command recorded in the implementation report.
+- Integration boundaries (OAuth flows, cross-service handoffs, cookies/sessions crossing origins) need at least one test exercising the real path end to end. A suite that mocks every external call proves the mocks, not the flow.
+
+The task packet's `## Verification Plan` lists the checks the Reviewer will run; make sure each one exists and passes before sending ready-for-review.
+
 Never report work as complete without saying what verification ran.
 
 ## Reviewer Handoff
@@ -219,6 +227,7 @@ In the follow-up implementation report, include:
 - Do not change unrelated code because you noticed it.
 - Do not add broad dependencies for small problems.
 - Do not skip tests because the change looks simple.
+- Do not ship a user-facing change whose only verification is unit tests with every external boundary mocked.
 - Do not pass product decisions to the Reviewer. Escalate them to the PM/client.
 - Do not close with only an informal chat summary when a saved inter-agent report is required.
 - Do not silently degrade output or skip a step because a package is missing — resolve the environment, then request the install.

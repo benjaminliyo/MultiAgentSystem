@@ -1,0 +1,144 @@
+# Curated skill registry for the find-skill capability.
+#
+# This is search layer 2 in the find-skill search order (1 = already-installed
+# skills, 2 = this registry, 3 = platform-native catalog, 4 = public search).
+# `scripts/find_skill.py search` ranks these entries against a natural-language
+# query; `install` clones source_repo and copies source_path into the target
+# platform's skills directory AFTER PM/client approval.
+#
+# Curation rules:
+# - Entries must name a real, publicly reachable skill. Verify source_repo and
+#   source_path before adding; re-verify before installing (upstream repos move).
+# - `trust` is "curated" (maintainer-verified), "community" (well-known public
+#   collection, not re-verified per release), or "unverified".
+# - Keep keywords generous — they are what deterministic search matches on.
+# - Concrete skill names are allowed here (this file and role-skill-map.toml
+#   are exactly the places for them; role files reference categories only).
+#
+# Sources referenced below (verified 2026-07):
+# - obra/superpowers — community collection behind most role-skill-map candidates.
+# - anthropics/skills — Anthropic's public document/agent skills.
+# The `install` field shows the skills.sh CLI form (needs Node); find_skill.py's
+# own `install` command is the no-Node path via git clone.
+
+schema_version = 1
+
+[[skills]]
+name = "test-driven-development"
+description = "Write a failing test first, then implement; red-green-refactor discipline for features and bug fixes."
+category = "a test-driven development skill"
+keywords = ["tdd", "testing", "unit test", "failing test", "red green refactor"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/test-driven-development"
+install = "npx skills add obra/superpowers@test-driven-development -g"
+trust = "community"
+
+[[skills]]
+name = "systematic-debugging"
+description = "Structured root-cause debugging: reproduce, isolate, hypothesize, verify — instead of guess-and-patch."
+category = "a systematic-debugging skill"
+keywords = ["debugging", "root cause", "failed test", "bug", "investigate"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/systematic-debugging"
+install = "npx skills add obra/superpowers@systematic-debugging -g"
+trust = "community"
+
+[[skills]]
+name = "verification-before-completion"
+description = "Verify work actually runs and satisfies requirements before declaring it done; evidence over confidence."
+category = "a verification-before-completion skill"
+keywords = ["verification", "done", "completion", "evidence", "check before finish"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/verification-before-completion"
+install = "npx skills add obra/superpowers@verification-before-completion -g"
+trust = "community"
+
+[[skills]]
+name = "writing-plans"
+description = "Turn a goal or spec into a written, reviewable implementation plan with steps and checkpoints."
+category = "a plan-writing / goal-definition skill"
+keywords = ["plan", "planning", "spec", "design doc", "steps"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/writing-plans"
+install = "npx skills add obra/superpowers@writing-plans -g"
+trust = "community"
+
+[[skills]]
+name = "executing-plans"
+description = "Execute a written implementation plan checkpoint by checkpoint without drifting from it."
+category = "a plan-execution skill"
+keywords = ["plan execution", "checkpoints", "follow plan", "implementation plan"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/executing-plans"
+install = "npx skills add obra/superpowers@executing-plans -g"
+trust = "community"
+
+[[skills]]
+name = "receiving-code-review"
+description = "Respond to code-review feedback productively: triage findings, fix required items, push back with evidence."
+category = "a code-review-response skill"
+keywords = ["code review", "review feedback", "reviewer", "fix request"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/receiving-code-review"
+install = "npx skills add obra/superpowers@receiving-code-review -g"
+trust = "community"
+
+[[skills]]
+name = "brainstorming"
+description = "Structured idea generation and product discovery before committing to a design."
+category = "a brainstorming / product-discovery skill"
+keywords = ["brainstorm", "ideas", "discovery", "product", "options"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/brainstorming"
+install = "npx skills add obra/superpowers@brainstorming -g"
+trust = "community"
+
+[[skills]]
+name = "using-git-worktrees"
+description = "Isolate feature work in git worktrees; create, switch, and clean up worktrees safely."
+category = "a version-control / collaboration skill"
+keywords = ["git", "worktree", "branch", "isolation", "version control"]
+source_repo = "https://github.com/obra/superpowers"
+source_path = "skills/using-git-worktrees"
+install = "npx skills add obra/superpowers@using-git-worktrees -g"
+trust = "community"
+
+[[skills]]
+name = "docx"
+description = "Create and edit Word (.docx) documents with correct formatting, styles, and tracked changes."
+category = "a document-formatting skill"
+keywords = ["word", "docx", "document", "report", "formatting"]
+source_repo = "https://github.com/anthropics/skills"
+source_path = "document-skills/docx"
+install = "npx skills add anthropics/skills@docx -g"
+trust = "community"
+
+[[skills]]
+name = "pdf"
+description = "Read, generate, and manipulate PDF files (extraction, merging, form filling)."
+category = "a document-formatting skill"
+keywords = ["pdf", "document", "extract", "forms"]
+source_repo = "https://github.com/anthropics/skills"
+source_path = "document-skills/pdf"
+install = "npx skills add anthropics/skills@pdf -g"
+trust = "community"
+
+[[skills]]
+name = "pptx"
+description = "Create and edit PowerPoint (.pptx) presentations with layouts, themes, and speaker notes."
+category = "a document-formatting skill"
+keywords = ["powerpoint", "pptx", "slides", "presentation", "deck"]
+source_repo = "https://github.com/anthropics/skills"
+source_path = "document-skills/pptx"
+install = "npx skills add anthropics/skills@pptx -g"
+trust = "community"
+
+[[skills]]
+name = "xlsx"
+description = "Create and edit Excel (.xlsx) spreadsheets with formulas, formatting, and charts."
+category = "a document-formatting skill"
+keywords = ["excel", "xlsx", "spreadsheet", "table", "formulas", "csv"]
+source_repo = "https://github.com/anthropics/skills"
+source_path = "document-skills/xlsx"
+install = "npx skills add anthropics/skills@xlsx -g"
+trust = "community"

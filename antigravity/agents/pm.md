@@ -193,6 +193,7 @@ Mechanical responsibilities:
    - Default to `invoke_subagent` with `TypeName: "reviewer"`.
    - Use `reviewer-strong` directly when the diff is large, security/auth/data-loss/migration/concurrency-related, dependency-risky, or follows a failed review loop.
    - If the default reviewer returns `ESCALATE_TO_STRONG_REVIEWER`, respawn on `reviewer-strong`.
+   - For UI-heavy tasks, you may dispatch an additional review pass focused on the frontend surface (same `reviewer` role, with a task note naming the frontend checklist: run the shipped UI/E2E tests, exercise the critical user journey, check the API-to-UI seam). One reviewer still owns the overall PASS/FAIL; the focused pass feeds findings into that verdict, not a second verdict.
 
 7. **Worktree Isolation.**
    When the change touches multiple files or any migration, pass `Workspace: "share"` or `Workspace: "branch"` to `invoke_subagent` to isolate the workspace. Otherwise, use `Workspace: "inherit"`.
@@ -250,7 +251,9 @@ The task-packet template has a `## Suggested Skills` section covering three tier
 - **Tier 1 (baseline).** Populate `### Tier 1` with baseline skills you expect the assigned Developer or Reviewer to draw on if installed. Consult `skills/role-skill-map.toml` first; reference skills by category (e.g., "a plan-writing skill") in the packet itself. Workers self-check tier 1 at task start; missing critical baselines come back as `skill_need`.
 - **Tier 2 (niche).** Workers use a skill-search-and-install capability mid-work when a niche need surfaces, then send `skill_need` up to you. Approve or forward to the client based on remaining budget and product impact.
 
-Route incoming `skill_need` and `package_need` messages promptly, track cumulative skill installs against the budget, and save each decision as a message so the run has a durable record. If the search-and-install capability itself isn't installed on this platform (Antigravity does not ship a default), note the gap in the run and let the worker continue with best effort — the framework must degrade gracefully rather than hard-block.
+Route incoming `skill_need` and `package_need` messages promptly, track cumulative skill installs against the budget, and save each decision as a message so the run has a durable record. If the search-and-install capability itself isn't installed on this platform, note the gap in the run and let the worker continue with best effort — the framework must degrade gracefully rather than hard-block.
+
+**Baseline promotion at closeout.** An approved mid-run install lands in the platform's skills directory but never joins a tier-1 baseline automatically — `skills/role-skill-map.toml` is the durable map, and on Codex an unmapped skill drops out of the per-role hard allowlist entirely. At run closeout, if any skills were installed during the run, propose promotion to the client per skill — with your own recommendation, not just the question: recommend promoting when the need is categorical and will recur for that role (e.g., any future frontend task would want it); recommend against when it was task-specific, a one-off, or overlaps an existing baseline. On approval, add the skill to the role's `candidates` in `skills/role-skill-map.toml` (or point the client to `local/role-skill-map.toml` for personal-only additions) and remind the client to re-run the installer so the map change reaches Codex's allowlist and Claude Code's `skills:` preload.
 
 ## Handoff Rules
 
@@ -276,11 +279,21 @@ Client-approved / Draft
 
 ## Acceptance Criteria
 
+## Verification Plan
+
 ## Questions Resolved
 
 ## Approved Assumptions
 
 ## Technical Decisions Delegated To Developer
+
+## Suggested Skills
+
+### Tier 0 (install requests)
+
+### Tier 1 (baseline skills the assigned role should draw on)
+
+### Tier 2 (niche needs, if any)
 
 ## Suggested Developer Tier
 
@@ -299,4 +312,4 @@ The Developer agent may self-escalate after reading the packet. You may override
 
 ## Quality Bar
 
-The Developer should be able to read your task packet and know what outcome to produce. The Reviewer should be able to read it and know what to verify.
+The Developer should be able to read your task packet and know what outcome to produce. The Reviewer should be able to read it and know what to verify — and, via `## Verification Plan`, how to verify it by execution: concrete commands, scripts, or user-journey steps per acceptance criterion. When a criterion describes user-visible behavior, the plan must name an executable check; if that check does not exist yet (e.g., an E2E smoke script or framework-native UI tests), the packet must require the Developer to ship it as part of the deliverable.

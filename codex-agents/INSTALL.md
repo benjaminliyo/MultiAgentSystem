@@ -31,14 +31,16 @@ Run the multiagent workflow for this project. Start with the PM agent.
 | Source (canonical repo)                             | Destination                                    |
 |-----------------------------------------------------|------------------------------------------------|
 | `codex-agents/templates/*.toml` (6 roles)           | `~/.codex/agents/*.toml` (rendered per user)   |
-| `codex-skill/multiagent-workflow/`                  | `~/.codex/skills/multiagent-workflow/`         |
+| `codex-skill/*/`                                    | `~/.codex/skills/<skill-name>/`                |
+| `scripts/find_skill.py`, `skills/registry.toml`     | bundled into `~/.codex/skills/find-skill/`     |
 
 The installer:
 
-1. Scans `~/.codex/skills/` and `~/.codex/plugins/` for `SKILL.md` files.
-2. Renders each `codex-agents/templates/<role>.toml` into `codex-agents/<role>.toml` with a `[[skills.config]]` block per discovered skill.
-3. Copies the rendered TOMLs to `~/.codex/agents/`.
-4. Copies the recognition skill to `~/.codex/skills/multiagent-workflow/`.
+1. Copies canonical Codex skills from `codex-skill/` into `~/.codex/skills/`.
+2. Bundles `find_skill.py` and `registry.toml` into the installed `find-skill` skill so it works without the repo checkout.
+3. Scans `~/.codex/skills/` and `~/.codex/plugins/` for `SKILL.md` files.
+4. Renders each `codex-agents/templates/<role>.toml` into `codex-agents/<role>.toml` with a `[[skills.config]]` block per discovered skill.
+5. Copies the rendered TOMLs to `~/.codex/agents/`.
 
 The rendered `codex-agents/*.toml` files are gitignored so per-user skill paths never enter version control. The upstream templates in `codex-agents/templates/` are the source of truth.
 
@@ -57,6 +59,12 @@ python scripts/install.py validate-install --repo-root . --platform codex
 A clean install reports `"complete": true`.
 
 Override the install root with `--codex-home <path>` if your Codex install lives elsewhere.
+
+The bundled find-skill engine can also be smoke-tested after install:
+
+```powershell
+python "$HOME\.codex\skills\find-skill\find_skill.py" search "excel spreadsheet"
+```
 
 ## Flags
 
@@ -90,8 +98,11 @@ researcher   # optional, read-only exploration
 
 **Rendered TOMLs have no `[[skills.config]]` entries.** No `SKILL.md` files were discovered under `~/.codex/skills/` or `~/.codex/plugins/`. The install still works; the roles just won't reference any local skills. Install skills into `~/.codex/skills/` and re-run the installer.
 
+**Tier-2 skill search cannot find the Codex catalog.** The repo `find-skill` wrapper uses the bundled engine for installed skills and the curated registry, then delegates Codex catalog lookup to the standard preinstalled `skill-installer` system skill. Confirm `~/.codex/skills/.system/skill-installer/SKILL.md` exists and restart Codex if it was installed or updated during the current session.
+
 ## Related Docs
 
 - `CODEX-CUSTOM-AGENTS.md` — deeper reference: agent communication model, skill configuration, model/permission defaults.
 - `codex-skill/multiagent-workflow/SKILL.md` — the recognition skill.
+- `codex-skill/find-skill/SKILL.md` - the skill search-and-install wrapper.
 - `codex-agents/templates/*.toml` — canonical role templates.

@@ -73,6 +73,8 @@ The installer applies the map as far as each platform allows:
 
 PM consults the map when populating a packet's `### Tier 1`. Edit the map, re-run the installer, restart the session.
 
+**Baseline promotion at closeout.** A mid-run install never joins the map automatically. At run closeout, PM reviews any skills installed during the run and proposes promotion to the client per skill, with PM's own recommendation (promote when the need is categorical and will recur for the role; skip when it was task-specific or overlaps an existing baseline). Client approval → map edit → installer re-run. Full rule in `roles/pm.md` "Skill Self-Check".
+
 ## Packages (`package_need`)
 
 The same acquire-don't-improvise principle applies to packages, with one extra hazard: a package that lives in a non-activated project environment looks identical to a truly missing one, and a naive `pip install` lands in the wrong Python.
@@ -119,11 +121,11 @@ The framework requires a real installed skill that can (a) search a skill regist
 
 | Platform     | Concrete skill that satisfies it today                              | Notes |
 |--------------|---------------------------------------------------------------------|-------|
-| Codex        | `skill-installer` (ships with the standard Codex skill catalog)     | Recommended default. Handles search + install for the OpenAI skill registry. Listed in the role-skill map's `[always]` section so it survives the per-role allowlist. |
-| Claude Code  | *No default ships in-box.* Community skills may satisfy; check `~/.claude/skills/` for anything with search + install semantics. | If none is installed, tier 2 degrades gracefully — see below. Consider installing a community equivalent if tier-2 gaps become common. |
-| Antigravity  | *No default ships in-box.* Same as Claude Code: community skills may satisfy; check `~/.gemini/config/skills/` (or the equivalent path). | Same graceful-degradation path. |
+| Codex        | Repo-shipped `find-skill` (`codex-skill/find-skill/`), installed automatically by `install --platform codex`; delegates Codex-catalog lookup to preinstalled `skill-installer`. | Self-contained install: bundles the shared engine `scripts/find_skill.py` and curated registry `skills/registry.toml` next to its SKILL.md. Listed in the role-skill map's `[always]` section so it survives the per-role allowlist. |
+| Claude Code  | Repo-shipped `find-skill` (`claude-code/skill/find-skill/`), installed automatically by `install --platform claude-code`. | Self-contained install: bundles the shared engine `scripts/find_skill.py` and curated registry `skills/registry.toml` next to its SKILL.md. |
+| Antigravity  | Repo-shipped `find-skill` (`antigravity/skill/find-skill/`), installed automatically by `install --platform antigravity`. | Self-contained install: bundles the shared engine `scripts/find_skill.py` and curated registry `skills/registry.toml` next to its SKILL.md. |
 
-If a platform later ships a default that satisfies the capability, add a row here. If a user installs their own concrete skill (any name — the framework doesn't care), it counts. The name `find-skill` in `skills/find-skill.md` refers to the *capability*, not a required artifact.
+The concrete implementation's search order is: 1) installed skills, 2) the curated registry (`skills/registry.toml` — deterministic keyword search via `scripts/find_skill.py`), 3) the platform-native catalog where one exists, 4) public search (skills.sh / web), whose results are proposed but never auto-installed. If a user installs their own concrete skill (any name — the framework doesn't care), it counts. The name `find-skill` in `skills/find-skill.md` refers to the *capability*, not a required artifact.
 
 ## Graceful Degradation When The Capability Isn't Installed
 

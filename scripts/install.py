@@ -119,12 +119,17 @@ def _validate_install_codex(
             except MultiAgentFileError as exc:
                 missing.append(str(exc))
 
-    canonical_skill = repo / "codex-skill" / "multiagent-workflow" / "SKILL.md"
-    installed_skill = home / "skills" / "multiagent-workflow" / "SKILL.md"
-    if not canonical_skill.exists():
-        missing.append(str(canonical_skill))
-    if not installed_skill.exists():
-        missing.append(str(installed_skill))
+    skills_src = repo / "codex-skill"
+    canonical_skill_dirs = _canonical_skill_dirs(skills_src)
+    if not any(entry.name == "multiagent-workflow" for entry in canonical_skill_dirs):
+        missing.append(str(skills_src / "multiagent-workflow" / "SKILL.md"))
+    for skill_dir in canonical_skill_dirs:
+        canonical_skill = skill_dir / "SKILL.md"
+        installed_skill = home / "skills" / skill_dir.name / "SKILL.md"
+        if not canonical_skill.exists():
+            missing.append(str(canonical_skill))
+        if not installed_skill.exists():
+            missing.append(str(installed_skill))
 
     _validate_shared_repo_files(repo, missing, warnings)
 
@@ -139,6 +144,18 @@ def _validate_install_codex(
         "missing": missing,
         "warnings": warnings,
     }
+
+
+def _canonical_skill_dirs(skills_src: Path) -> list[Path]:
+    return (
+        sorted(
+            entry
+            for entry in skills_src.iterdir()
+            if entry.is_dir() and (entry / "SKILL.md").is_file()
+        )
+        if skills_src.is_dir()
+        else []
+    )
 
 
 def _validate_shared_repo_files(repo: Path, missing: list[str], warnings: list[str]) -> None:
@@ -239,11 +256,21 @@ def _validate_install_claude_code(
     )
     _validate_shared_repo_files(repo, missing, warnings)
 
-    canonical_skill = repo / "claude-code" / "skill" / "multiagent-workflow" / "SKILL.md"
-    installed_skill = home / "skills" / "multiagent-workflow" / "SKILL.md"
-    if not canonical_skill.exists():
-        missing.append(str(canonical_skill))
-    else:
+    skills_src = repo / "claude-code" / "skill"
+    canonical_skill_dirs = (
+        sorted(
+            entry
+            for entry in skills_src.iterdir()
+            if entry.is_dir() and (entry / "SKILL.md").is_file()
+        )
+        if skills_src.is_dir()
+        else []
+    )
+    if not any(entry.name == "multiagent-workflow" for entry in canonical_skill_dirs):
+        missing.append(str(skills_src / "multiagent-workflow" / "SKILL.md"))
+    for skill_dir in canonical_skill_dirs:
+        canonical_skill = skill_dir / "SKILL.md"
+        installed_skill = home / "skills" / skill_dir.name / "SKILL.md"
         try:
             skill_text = canonical_skill.read_text(encoding="utf-8")
             skill_meta, _ = parse_frontmatter(skill_text)
@@ -251,8 +278,8 @@ def _validate_install_claude_code(
                 missing.append(f"{canonical_skill}: skill frontmatter missing name or description")
         except OSError as exc:
             missing.append(f"{canonical_skill}: cannot read ({exc})")
-    if not installed_skill.exists():
-        missing.append(str(installed_skill))
+        if not installed_skill.exists():
+            missing.append(str(installed_skill))
 
     return {
         "platform": "claude-code",
@@ -282,11 +309,13 @@ def _validate_install_antigravity(
     )
     _validate_shared_repo_files(repo, missing, warnings)
 
-    canonical_skill = repo / "antigravity" / "skill" / "multiagent-workflow" / "SKILL.md"
-    installed_skill = home / "skills" / "multiagent-workflow" / "SKILL.md"
-    if not canonical_skill.exists():
-        missing.append(str(canonical_skill))
-    else:
+    skills_src = repo / "antigravity" / "skill"
+    canonical_skill_dirs = _canonical_skill_dirs(skills_src)
+    if not any(entry.name == "multiagent-workflow" for entry in canonical_skill_dirs):
+        missing.append(str(skills_src / "multiagent-workflow" / "SKILL.md"))
+    for skill_dir in canonical_skill_dirs:
+        canonical_skill = skill_dir / "SKILL.md"
+        installed_skill = home / "skills" / skill_dir.name / "SKILL.md"
         try:
             skill_text = canonical_skill.read_text(encoding="utf-8")
             skill_meta, _ = parse_frontmatter(skill_text)
@@ -294,8 +323,8 @@ def _validate_install_antigravity(
                 missing.append(f"{canonical_skill}: skill frontmatter missing name or description")
         except OSError as exc:
             missing.append(f"{canonical_skill}: cannot read ({exc})")
-    if not installed_skill.exists():
-        missing.append(str(installed_skill))
+        if not installed_skill.exists():
+            missing.append(str(installed_skill))
 
     return {
         "platform": "antigravity",
@@ -495,6 +524,35 @@ def _skill_config_blocks(skill_paths: list[Path]) -> str:
     return "\n".join(lines)
 
 
+def _bundle_find_skill(repo: Path, find_skill_dst: Path, installed: list[str], warnings: list[str]) -> None:
+    if not find_skill_dst.is_dir():
+        return
+    for bundle_src in (repo / "scripts" / "find_skill.py", repo / "skills" / "registry.toml"):
+        if bundle_src.is_file():
+            copy_file(bundle_src, find_skill_dst / bundle_src.name)
+            installed.append(str(find_skill_dst / bundle_src.name))
+        else:
+            warnings.append(f"find-skill bundle source missing: {bundle_src}")
+
+
+def _copy_canonical_skills(
+    repo: Path,
+    source_root: Path,
+    installed_root: Path,
+    required_skill: str,
+    installed: list[str],
+    warnings: list[str],
+) -> None:
+    canonical_skill_dirs = _canonical_skill_dirs(source_root)
+    if not any(entry.name == required_skill for entry in canonical_skill_dirs):
+        warnings.append(f"Skill source missing: {source_root / required_skill}")
+    for skill_dir in canonical_skill_dirs:
+        skill_dst = installed_root / skill_dir.name
+        installed.extend(copy_tree(skill_dir, skill_dst))
+        if skill_dir.name == "find-skill":
+            _bundle_find_skill(repo, skill_dst, installed, warnings)
+
+
 def install_codex(
     repo_root: Path,
     codex_home: Path | None = None,
@@ -518,12 +576,23 @@ def install_codex(
     target_dir = repo / "codex-agents"
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    skills = discover_codex_skills(home)
-    skill_map, map_warnings = load_role_skill_map(repo)
-
     generated: list[str] = []
     deployed: list[str] = []
-    warnings: list[str] = list(map_warnings)
+    warnings: list[str] = []
+
+    if deploy:
+        _copy_canonical_skills(
+            repo,
+            repo / "codex-skill",
+            home / "skills",
+            "multiagent-workflow",
+            deployed,
+            warnings,
+        )
+
+    skills = discover_codex_skills(home)
+    skill_map, map_warnings = load_role_skill_map(repo)
+    warnings.extend(map_warnings)
 
     if not skills:
         warnings.append(f"No SKILL.md files found under {home}; generated TOMLs have no [[skills.config]] entries.")
@@ -573,16 +642,6 @@ def install_codex(
             deploy_path = deploy_dir / name
             deploy_path.write_text(rendered, encoding="utf-8")
             deployed.append(str(deploy_path))
-
-    # The recognition skill is a required install alongside the agents; without
-    # it, "run the multiagent workflow" won't reliably resolve to the pm agent.
-    if deploy:
-        source_skill = repo / "codex-skill" / "multiagent-workflow"
-        if source_skill.is_dir():
-            skill_dst = home / "skills" / "multiagent-workflow"
-            deployed.extend(copy_tree(source_skill, skill_dst))
-        else:
-            warnings.append(f"Codex skill source missing: {source_skill}")
 
     return {
         "repo_root": str(repo),
@@ -684,10 +743,23 @@ def install_claude_code(
     skills_injected: dict[str, list[str]] = {}
     switched_list: list[str] = []
 
-    # Copy the skill and command before discovering installed skills, so a
+    # Copy the skills and command before discovering installed skills, so a
     # first install already sees multiagent-workflow for `skills:` injection.
     skill_dst = home / "skills" / "multiagent-workflow"
     installed.extend(copy_tree(source_skill, skill_dst))
+
+    # Any additional canonical skills shipped for this platform (e.g. find-skill).
+    for extra_skill in sorted((repo / "claude-code" / "skill").iterdir()):
+        if extra_skill.name == "multiagent-workflow" or not extra_skill.is_dir():
+            continue
+        if not (extra_skill / "SKILL.md").is_file():
+            continue
+        installed.extend(copy_tree(extra_skill, home / "skills" / extra_skill.name))
+
+    # find-skill is self-contained when installed: bundle the shared engine and
+    # curated registry next to its SKILL.md so it works without the repo path.
+    find_skill_dst = home / "skills" / "find-skill"
+    _bundle_find_skill(repo, find_skill_dst, installed, warnings)
 
     command_dst = home / "commands" / "multiagent.md"
     copy_file(source_command, command_dst)
@@ -875,12 +947,8 @@ def install_antigravity(
     home = (antigravity_home or (Path.home() / ".gemini" / "config")).expanduser().resolve()
 
     source_agents = repo / "antigravity" / "agents"
-    source_skill = repo / "antigravity" / "skill" / "multiagent-workflow"
-
     if not source_agents.is_dir():
         raise MultiAgentFileError(f"Missing source: {source_agents}")
-    if not source_skill.is_dir():
-        raise MultiAgentFileError(f"Missing source: {source_skill}")
 
     installed: list[str] = []
     warnings: list[str] = []
@@ -913,8 +981,18 @@ def install_antigravity(
         dst.write_text(text, encoding="utf-8")
         installed.append(str(dst))
 
-    skill_dst = home / "skills" / "multiagent-workflow"
-    installed.extend(copy_tree(source_skill, skill_dst))
+    skills_src = repo / "antigravity" / "skill"
+    canonical_skill_dirs = _canonical_skill_dirs(skills_src)
+    if not any(entry.name == "multiagent-workflow" for entry in canonical_skill_dirs):
+        raise MultiAgentFileError(f"Missing required source skill: {skills_src / 'multiagent-workflow'}")
+    for skill_dir in canonical_skill_dirs:
+        skill_dst = home / "skills" / skill_dir.name
+        installed.extend(copy_tree(skill_dir, skill_dst))
+
+    # find-skill is self-contained when installed: bundle the shared engine and
+    # curated registry next to its SKILL.md so it works without the repo path.
+    find_skill_dst = home / "skills" / "find-skill"
+    _bundle_find_skill(repo, find_skill_dst, installed, warnings)
 
     return {
         "platform": "antigravity",

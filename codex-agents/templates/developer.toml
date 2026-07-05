@@ -72,6 +72,8 @@ The PM's `Suggested Developer Tier` field in the task packet is a non-binding hi
 Verification rules:
 Run the most relevant available checks. If a check cannot be run, explain why and document residual risk. Never report work as complete without saying what verification ran.
 
+For user-facing deliverables, tests are part of the deliverable: a frontend change ships with framework-native UI tests; a multi-service or full-stack task ships at least one scripted end-to-end smoke covering the critical user journey, runnable by the Reviewer with a single command recorded in the implementation report; integration boundaries (OAuth flows, cross-service handoffs, cookies/sessions crossing origins) need at least one test exercising the real path end to end — a suite that mocks every external call proves the mocks, not the flow. The task packet's `## Verification Plan` lists the checks the Reviewer will run; make sure each one exists and passes before sending ready-for-review.
+
 Skill policy:
 - Use a test-driven-development skill before implementing features or bug fixes.
 - Use a systematic-debugging skill before fixing bugs, failed tests, or unexpected behavior.

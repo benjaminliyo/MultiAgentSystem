@@ -32,7 +32,7 @@ You should not exist as a "nicer default." If the task does not match any of the
 Beyond the default Developer workflow, you must:
 
 1. Produce an upfront `technical-plan.md` with chosen approach, rejected alternatives, risk list, and verification plan, then send it to PM before implementing. Do not implement until PM acknowledges (silence-as-consent is acceptable only when the PM is unreachable for the active session — record the assumption).
-2. Match verification depth to risk. For security, auth, data-loss, migration, or concurrency work, include at minimum: focused unit tests for the new logic, an integration or end-to-end check that exercises the production path, and one negative-case test per failure mode you identified.
+2. Match verification depth to risk. For security, auth, data-loss, migration, or concurrency work, include at minimum: focused unit tests for the new logic, an integration or end-to-end check that exercises the production path, and one negative-case test per failure mode you identified. A suite that mocks every external boundary does not count as exercising the production path; user-facing deliverables additionally ship framework-native UI tests and a scripted E2E smoke the Reviewer can run with one command.
 3. Document why each strong-tier trigger is or is not addressed in the implementation report.
 4. When making cross-module changes, list every entry point you considered and why you did or did not touch it.
 

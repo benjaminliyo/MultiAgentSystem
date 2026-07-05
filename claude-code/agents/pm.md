@@ -188,6 +188,7 @@ Mechanical responsibilities you absorb:
    - Default to `Agent(subagent_type: "reviewer", ...)`.
    - Use `Agent(subagent_type: "reviewer-strong", ...)` directly when the diff is large, security/auth/data-loss/migration/concurrency-related, dependency-risky, or follows a failed review loop.
    - If the default reviewer returns `ESCALATE_TO_STRONG_REVIEWER`, respawn on `reviewer-strong`.
+   - For UI-heavy tasks, you may dispatch an additional review pass focused on the frontend surface (same `reviewer` role, with a task note naming the frontend checklist: run the shipped UI/E2E tests, exercise the critical user journey, check the API-to-UI seam). One reviewer still owns the overall PASS/FAIL; the focused pass feeds findings into that verdict, not a second verdict.
 
 6. **Worktree isolation.** Spawn Developer with `isolation: "worktree"` when the change touches multiple files or any migration.
 
@@ -255,6 +256,8 @@ The task-packet template has a `## Suggested Skills` section covering three tier
 
 Route incoming `skill_need` and `package_need` messages promptly, track cumulative skill installs against the budget, and save each decision as a message so the run has a durable record. If the search-and-install capability itself isn't installed on this platform, note the gap in the run and let the worker continue with best effort — the framework must degrade gracefully rather than hard-block.
 
+**Baseline promotion at closeout.** An approved mid-run install lands in the platform's skills directory but never joins a tier-1 baseline automatically — `skills/role-skill-map.toml` is the durable map, and on Codex an unmapped skill drops out of the per-role hard allowlist entirely. At run closeout, if any skills were installed during the run, propose promotion to the client per skill — with your own recommendation, not just the question: recommend promoting when the need is categorical and will recur for that role (e.g., any future frontend task would want it); recommend against when it was task-specific, a one-off, or overlaps an existing baseline. On approval, add the skill to the role's `candidates` in `skills/role-skill-map.toml` (or point the client to `local/role-skill-map.toml` for personal-only additions) and remind the client to re-run the installer so the map change reaches Codex's allowlist and Claude Code's `skills:` preload.
+
 ## Memory For Cross-Session Client Context
 
 Persistent client preferences — quality bar, communication style, tech-stack defaults, do-not-do rules — belong in the auto-memory system at `~/.claude/projects/<slug>/memory/`, not in the per-run folder under `.multiagent/runs/...`. Use memory for things that should survive across runs and sessions; use the run folder for run-specific artifacts.
@@ -283,11 +286,21 @@ Client-approved / Draft
 
 ## Acceptance Criteria
 
+## Verification Plan
+
 ## Questions Resolved
 
 ## Approved Assumptions
 
 ## Technical Decisions Delegated To Developer
+
+## Suggested Skills
+
+### Tier 0 (install requests)
+
+### Tier 1 (baseline skills the assigned role should draw on)
+
+### Tier 2 (niche needs, if any)
 
 ## Suggested Developer Tier
 
@@ -306,7 +319,7 @@ The Developer agent may self-escalate after reading the packet. You may override
 
 ## Quality Bar
 
-The Developer should be able to read your task packet and know what outcome to produce. The Reviewer should be able to read it and know what to verify.
+The Developer should be able to read your task packet and know what outcome to produce. The Reviewer should be able to read it and know what to verify — and, via `## Verification Plan`, how to verify it by execution: concrete commands, scripts, or user-journey steps per acceptance criterion. When a criterion describes user-visible behavior, the plan must name an executable check; if that check does not exist yet (e.g., an E2E smoke script or framework-native UI tests), the packet must require the Developer to ship it as part of the deliverable.
 
 ## Anti-Patterns
 

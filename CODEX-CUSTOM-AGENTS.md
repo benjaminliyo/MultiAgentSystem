@@ -81,13 +81,13 @@ Use `COMMUNICATION-PROTOCOL.md` for message structure and `TEAM-WORKFLOW.md` for
 
 Shipped canonical templates live at `codex-agents/templates/*.toml`. These templates contain the role instructions and skill *categories* (e.g. "a plan-writing skill," "a systematic-debugging skill"), but no concrete `[[skills.config]]` path entries — those depend on which skills each user has installed locally.
 
-The installer (`.\scripts\install.ps1 codex` or `./scripts/install.sh codex`) scans `~/.codex/skills/` and `~/.codex/plugins/` for `SKILL.md` files and appends a `[[skills.config]]` block per skill to each generated `codex-agents/<role>.toml` before copying to `~/.codex/agents/<role>.toml`.
+The installer (`.\scripts\install.ps1 codex` or `./scripts/install.sh codex`) first copies the canonical Codex skills from `codex-skill/` into `~/.codex/skills/`, then scans `~/.codex/skills/` and `~/.codex/plugins/` for `SKILL.md` files. It appends a `[[skills.config]]` block per matched skill to each generated `codex-agents/<role>.toml` before copying to `~/.codex/agents/<role>.toml`.
 
 The generated `codex-agents/*.toml` files are gitignored so personal paths never enter version control.
 
 For genericized examples of a personal skill setup (a `local/role-skill-map.toml` overlay plus role overlays), see `examples/personal-profiles/`. Do not copy the skill names blindly — they are illustrations; installations vary per user.
 
-If a Developer task needs a domain skill that no template lists (databases, embedded, LaTeX, scientific compute, etc.), the Developer should use a skill-installer or skill-search capability to find and request installation via a `skill_need` message routed through PM.
+If a Developer task needs a domain skill that no template lists (databases, embedded, LaTeX, scientific compute, etc.), the Developer should use the repo `find-skill` wrapper to search installed skills and the curated registry, then delegate Codex-catalog lookup to Codex's preinstalled `skill-installer` system skill. Any install request still goes through a `skill_need` message routed through PM.
 
 All agents should have a skill-installer or skill-search capability available for this purpose.
 
@@ -99,13 +99,16 @@ Use a balanced automatic model policy by default. PM uses `gpt-5.5` with `xhigh`
 
 The `researcher` is the one exception to Scoped Autonomy: its template ships a hard permission profile (`default_permissions = "researcher"` in `codex-agents/templates/researcher.toml`) — workspace read-only, write access limited to `.multiagent/` (run-folder logging via `append-message`), network disabled. This makes the role's read-only contract mechanical on Codex instead of instruction-following; the prompt remains the behavioral contract. The profile is deliberately researcher-only: PM and Developer need write access, and Reviewer — read-only by contract — still runs verification commands that mutate the workspace (bytecode caches, build and test artifacts), so a workspace-read profile would break its job. Known caveat of `network.enabled = false`: local git history works, but repository-history skills that fetch remote PR/issue context will fail — the researcher should report that need to PM rather than work around it.
 
-The root session should also have the `multiagent-workflow` skill installed at:
+The root session should also have these repo skills installed:
 
 ```text
 ~/.codex/skills/multiagent-workflow
+~/.codex/skills/find-skill
 ```
 
-(The installer copies this automatically.)
+The installed `find-skill` directory is self-contained: the installer bundles `scripts/find_skill.py` and `skills/registry.toml` next to its `SKILL.md`. Codex also ships the standard `skill-installer` system skill at `~/.codex/skills/.system/skill-installer/SKILL.md`; `find-skill` delegates the native catalog layer to it rather than duplicating catalog logic.
+
+(The installer copies these automatically.)
 
 ## After Editing
 

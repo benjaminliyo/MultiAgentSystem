@@ -238,8 +238,50 @@ def write_active_run(root: Path, run_name: str, run_dir: Path, state: str) -> Pa
     return path
 
 
+def skills_inventory_lines() -> list[str]:
+    """Per-platform installed-skill summary for the PM-mode marker block.
+
+    Snapshot taken at prepare-run/activate-run time. This is the mechanical
+    anchor for the skills framework: PM sees what is actually installed —
+    including a MISSING search-and-install capability — every turn, instead
+    of having to remember to check (docs/skills-framework.md).
+    """
+    try:
+        from find_skill import PLATFORM_SKILL_DIRS, SEARCH_CAPABILITY_NAMES
+    except Exception:
+        return []
+    lines: list[str] = []
+    for platform, root in PLATFORM_SKILL_DIRS.items():
+        if not root.is_dir():
+            continue
+        try:
+            names = sorted(
+                entry.name
+                for entry in root.iterdir()
+                if entry.is_dir() and (entry / "SKILL.md").is_file()
+            )
+        except OSError:
+            continue
+        cap = "present" if any(n in SEARCH_CAPABILITY_NAMES for n in names) else "MISSING"
+        if len(names) > 12:
+            shown = ", ".join(names[:12]) + f", ... (+{len(names) - 12} more)"
+        else:
+            shown = ", ".join(names) if names else "(none)"
+        lines.append(f"  - {platform}: {shown} | search-and-install capability: {cap}")
+    return lines
+
+
 def marker_block(run_name: str) -> str:
     script = Path(__file__).resolve().as_posix()
+    inventory = skills_inventory_lines()
+    inventory_section = ""
+    if inventory:
+        inventory_lines = "\n".join(inventory)
+        inventory_section = f"""
+- Installed skills at run start (PM: consult when filling the packet's
+  Suggested Skills; a MISSING search-and-install capability must be raised
+  to the client at preflight - proceed degraded or install one first):
+{inventory_lines}"""
     return f"""{MARKER_BEGIN}
 ## MultiAgent PM Mode (active)
 
@@ -254,7 +296,7 @@ A PM-led multiagent run is active in this project: `.multiagent/runs/{run_name}/
   `run-summary.md`. Update it on every transition:
   `python "{script}" set-state --run <run-dir> --state <state>`
 - To deactivate PM mode: `/multiagent off`, or
-  `python "{script}" close-run --root <project-root>`
+  `python "{script}" close-run --root <project-root>`{inventory_section}
 {MARKER_END}"""
 
 

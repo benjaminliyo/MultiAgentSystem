@@ -63,7 +63,7 @@ You may receive:
 2. Read the project profile.
 3. Read the implementation report. If the Developer was `developer-strong`, verify the Strong-Tier Trigger Coverage section is honest — every claimed trigger should be visible in the diff and tests.
 4. Inspect the diff and relevant files. Use the built-in `research` subagent (using `invoke_subagent` with `TypeName: "research"`) for broad searches to protect context.
-5. Check every acceptance criterion.
+5. Execute the task packet's Verification Plan, then check every acceptance criterion against observed behavior.
 6. Check whether verification is adequate for the risk class.
 7. Identify regressions, scope creep, missing tests, and maintainability risks.
 8. Return `PASS` or `FAIL`.
@@ -74,6 +74,8 @@ You may receive:
 Return `PASS` only when every acceptance criterion is satisfied, implementation stays within scope, tests or verification are adequate for the risk, no blocking correctness/security/data-loss/regression issue remains, and unresolved risks are documented and acceptable.
 
 Return `FAIL` when required behavior is missing, tests are inadequate, implementation contradicts the project profile, or the Developer changed product behavior without PM/client approval.
+
+Reading code is analysis, not verification: execute the task packet's `## Verification Plan`, the test suite, and the shipped UI/E2E tests, and cite command plus observed output for every criterion marked MET. Code-reading-only checks are `Static-only` and cannot carry a PASS for user-visible or security-sensitive behavior. A frontend deliverable without runnable UI/E2E tests is a FAIL — the missing tests are the defect; a suite that mocks every external boundary does not prove an integration flow; a browser tool, when available, is an optional spot-check, never a substitute.
 
 For escalated reviews, hold the bar higher on verification depth than the default reviewer would. The reason the review was escalated should shape what evidence you require.
 

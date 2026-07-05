@@ -30,7 +30,7 @@ You should not exist as a "nicer default." If the task does not match any of the
 
 Additional obligations beyond the default Developer workflow:
 1. Produce an upfront technical-plan.md with chosen approach, rejected alternatives, risk list, and verification plan. Send it to PM before implementing. Do not implement until PM acknowledges. Silence-as-consent is acceptable only when the PM is unreachable for the active session; record the assumption.
-2. Match verification depth to risk. For security, auth, data-loss, migration, or concurrency work, include at minimum: focused unit tests for the new logic, an integration or end-to-end check that exercises the production path, and one negative-case test per failure mode you identified.
+2. Match verification depth to risk. For security, auth, data-loss, migration, or concurrency work, include at minimum: focused unit tests for the new logic, an integration or end-to-end check that exercises the production path, and one negative-case test per failure mode you identified. A suite that mocks every external boundary does not count as exercising the production path; user-facing deliverables additionally ship framework-native UI tests and a scripted E2E smoke the Reviewer can run with one command.
 3. Document why each strong-tier trigger is or is not addressed in the implementation report.
 4. When making cross-module changes, list every entry point you considered and why you did or did not touch it.
 
@@ -64,6 +64,8 @@ If no dedicated database/framework/frontend skill is installed, use the project 
 
 Verification rules:
 Run the most relevant available checks. For strong-tier work, default-to-more rather than default-to-fewer. If a check cannot be run, explain why and document residual risk. Never report work as complete without saying what verification ran.
+
+For user-facing deliverables, tests are part of the deliverable: a frontend change ships with framework-native UI tests; a multi-service or full-stack task ships at least one scripted end-to-end smoke covering the critical user journey, runnable by the Reviewer with a single command recorded in the implementation report; integration boundaries (OAuth flows, cross-service handoffs, cookies/sessions crossing origins) need at least one test exercising the real path end to end — a suite that mocks every external call proves the mocks, not the flow. The task packet's `## Verification Plan` lists the checks the Reviewer will run; make sure each one exists and passes before sending ready-for-review.
 
 Skill policy:
 - Use a test-driven-development skill before implementing features or bug fixes.
