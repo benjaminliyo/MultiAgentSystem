@@ -1255,8 +1255,32 @@ class MultiAgentFilesTests(unittest.TestCase):
             self.assertIn("User content stays.", first)
             self.assertEqual(first.count(multiagent_files.MARKER_BEGIN), 1)
             self.assertEqual(second.count(multiagent_files.MARKER_BEGIN), 1)
-            # Existing context file used; no new AGENTS.md forced alongside it.
-            self.assertFalse((root / "AGENTS.md").exists())
+
+    def test_activation_covers_both_platform_context_files(self):
+        # A Claude-started project (CLAUDE.md only) must still alert Codex,
+        # which reads AGENTS.md — and vice versa. Activation therefore always
+        # ensures both files carry the marker, creating the missing one as a
+        # marker-only stub that close-run deletes again.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            claude_md = root / "CLAUDE.md"
+            claude_md.write_text("# My Project\n\nUser content stays.\n", encoding="utf-8")
+
+            multiagent_files.prepare_run(root, "Cross platform", "2026-07-02")
+
+            agents_md = root / "AGENTS.md"
+            self.assertIn(multiagent_files.MARKER_BEGIN, agents_md.read_text(encoding="utf-8"))
+            self.assertIn(multiagent_files.MARKER_BEGIN, claude_md.read_text(encoding="utf-8"))
+            # GEMINI.md is still only used when it already exists.
+            self.assertFalse((root / "GEMINI.md").exists())
+
+            multiagent_files.close_run(root)
+
+            # The marker-only stub goes away; the user's file is kept intact.
+            self.assertFalse(agents_md.exists())
+            text = claude_md.read_text(encoding="utf-8")
+            self.assertIn("User content stays.", text)
+            self.assertNotIn(multiagent_files.MARKER_BEGIN, text)
 
     def test_set_state_updates_summary_and_active_run(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1326,6 +1350,30 @@ class MultiAgentFilesTests(unittest.TestCase):
                 multiagent_files.MARKER_BEGIN,
                 (root / "AGENTS.md").read_text(encoding="utf-8"),
             )
+
+    def test_activate_run_project_hooks_renders_for_cross_platform_resume(self):
+        # A run prepared on Claude Code has no .codex/hooks.json; resuming it
+        # from Codex passes --project-hooks codex to activate-run to render it.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            payload = multiagent_files.prepare_run(root, "Started on Claude", "2026-07-02")
+            run_dir = Path(payload["run_dir"])
+            hooks_path = root / ".codex" / "hooks.json"
+            self.assertFalse(hooks_path.exists())
+
+            result = multiagent_files.reactivate_run(root, run_dir, project_hooks="codex")
+
+            self.assertTrue(result["project_hooks"]["written"])
+            self.assertTrue(hooks_path.exists())
+            self.assertNotIn("{{", hooks_path.read_text(encoding="utf-8"))
+
+            # Existing project hooks are never overwritten on a later resume.
+            second = multiagent_files.reactivate_run(root, run_dir, project_hooks="codex")
+            self.assertFalse(second["project_hooks"]["written"])
+
+            # Without the flag, activate-run leaves hooks alone entirely.
+            plain = multiagent_files.reactivate_run(root, run_dir)
+            self.assertIsNone(plain["project_hooks"])
 
     def test_activate_run_mid_state_carries_state_without_warning(self):
         with tempfile.TemporaryDirectory() as tmp:

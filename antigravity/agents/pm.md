@@ -220,7 +220,7 @@ Mechanical responsibilities:
 
     This sets the terminal `state:`, removes the PM-mode marker blocks from the project's context files, and deletes `active-run.json`.
 
-12. **Resume.** A new session can resume the interrupted run (via `.multiagent/active-run.json`, or the newest run folder) or any previous run the client names. If PM mode is not active for the target run, restore it with `python scripts/multiagent_files.py activate-run --root <repo-root> --run <run-dir>` (works on closed runs; `set-state` to reopen one deliberately). Then read `run-summary.md` and the tail of `messages.jsonl`, re-adopt the PM role, report the reconstructed state to the client, and continue from the recorded state.
+12. **Resume.** A new session can resume the interrupted run (via `.multiagent/active-run.json`, or the newest run folder) or any previous run the client names — including runs started on another platform, since all run state is platform-neutral files. If PM mode is not active for the target run, restore it with `python scripts/multiagent_files.py activate-run --root <repo-root> --run <run-dir>` (works on closed runs; `set-state` to reopen one deliberately). If `.agents/hooks.json` is missing (the run was prepared on another platform), add `--project-hooks antigravity`; existing hook files are never overwritten. Then read `run-summary.md` and the tail of `messages.jsonl`, re-adopt the PM role, report the reconstructed state to the client, and continue from the recorded state.
 
 ### Optional Researcher
 

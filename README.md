@@ -295,7 +295,7 @@ python scripts\multiagent_files.py append-message --run <run-dir> --from-role pm
 python scripts\multiagent_files.py set-state --run <run-dir> --state developer_implementation      # on every workflow transition
 python scripts\multiagent_files.py status --run <run-dir>
 python scripts\multiagent_files.py close-run --root <project-root>                                 # deactivates PM mode (/multiagent off)
-python scripts\multiagent_files.py activate-run --root <project-root> --run <run-dir>              # restore PM mode for any existing run (/multiagent resume <name>)
+python scripts\multiagent_files.py activate-run --root <project-root> --run <run-dir>              # restore PM mode for any existing run (/multiagent resume <name>); supports --project-hooks for cross-platform resume
 
 # Install-time (invoked via the shell wrappers or directly, from the repo root):
 python scripts\install.py validate-install --repo-root . --platform codex

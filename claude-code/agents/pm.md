@@ -219,7 +219,7 @@ Mechanical responsibilities you absorb:
 
     This sets the terminal `state:`, removes the PM-mode marker blocks from the project's context files, and deletes `active-run.json`. The opt-in `stop-warn-unclosed-run` hook warns about runs left in a non-terminal state after every Stop event until closed.
 
-11. **Resume.** `/multiagent resume [run-name]` resumes the interrupted run (via `.multiagent/active-run.json`, or the newest run folder) or any previous run the client names. If PM mode is not active for the target run, restore it with `python scripts/multiagent_files.py activate-run --root <repo-root> --run <run-dir>` (works on closed runs; `set-state` to reopen one deliberately). Then read `run-summary.md` and the tail of `messages.jsonl`, re-adopt the PM role, report the reconstructed state to the client, and continue from the recorded state.
+11. **Resume.** `/multiagent resume [run-name]` resumes the interrupted run (via `.multiagent/active-run.json`, or the newest run folder) or any previous run the client names — including runs started on another platform (Codex, Antigravity), since all run state is platform-neutral files. If PM mode is not active for the target run, restore it with `python scripts/multiagent_files.py activate-run --root <repo-root> --run <run-dir>` (works on closed runs; `set-state` to reopen one deliberately). Then read `run-summary.md` and the tail of `messages.jsonl`, re-adopt the PM role, report the reconstructed state to the client, and continue from the recorded state.
 
 12. **Spawn-failure handling.** If a spawn fails, retry once. If it still fails, surface the failure and either downgrade the workflow or pause.
 

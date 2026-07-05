@@ -309,14 +309,18 @@ def remove_marker_block(path: Path) -> bool:
 def context_files(root: Path) -> list[Path]:
     """Project context files to receive the PM-mode marker block.
 
-    Uses whichever of CLAUDE.md / AGENTS.md / GEMINI.md already exist; when
-    none exist, creates AGENTS.md and CLAUDE.md so both Codex- and
-    Claude-style harnesses pick the block up at system-prompt priority.
+    Always covers AGENTS.md and CLAUDE.md — creating whichever is missing —
+    so a run started on one platform stays visible when the project is
+    reopened on the other (Codex reads AGENTS.md, Claude Code reads
+    CLAUDE.md). GEMINI.md is included only when it already exists. A file
+    created here holds nothing but the marker block, so close-run removes
+    it again.
     """
-    existing = [root / name for name in CONTEXT_FILE_NAMES if (root / name).exists()]
-    if existing:
-        return existing
-    return [root / "AGENTS.md", root / "CLAUDE.md"]
+    paths = [root / "AGENTS.md", root / "CLAUDE.md"]
+    gemini = root / "GEMINI.md"
+    if gemini.exists():
+        paths.append(gemini)
+    return paths
 
 
 def activate_run(root: Path, run_name: str, run_dir: Path, state: str) -> dict[str, Any]:
@@ -463,18 +467,25 @@ def read_summary_state(run_dir: Path) -> str | None:
     return match.group(1).strip() if match else None
 
 
-def reactivate_run(root: Path, run_dir: Path) -> dict[str, Any]:
+def reactivate_run(
+    root: Path, run_dir: Path, project_hooks: str | None = None
+) -> dict[str, Any]:
     """Re-activate PM mode for an existing run (resume of any previous run).
 
     Restores `.multiagent/active-run.json` and the context-file marker blocks
     for the given run, using the state recorded in its run-summary.md. Works
     on closed runs too — the caller (PM) should `set-state` to a working state
-    when deliberately reopening one.
+    when deliberately reopening one. `project_hooks` renders the platform's
+    project-level hook wiring, for cross-platform resume of a run whose
+    prepare-run happened on a different platform.
     """
     project_root = require_dir(root, "Project root")
     run_path = require_dir(run_dir, "Run directory")
     state = read_summary_state(run_path) or "intake"
     activation = activate_run(project_root, run_path.name, run_path, state)
+    hooks_result: dict[str, Any] | None = None
+    if project_hooks:
+        hooks_result = write_project_hooks(project_root, project_hooks)
     warnings: list[str] = []
     if state in TERMINAL_RUN_STATES:
         warnings.append(
@@ -486,6 +497,7 @@ def reactivate_run(root: Path, run_dir: Path) -> dict[str, Any]:
         "run_name": run_path.name,
         "state": state,
         "activation": activation,
+        "project_hooks": hooks_result,
         "warnings": warnings,
         "complete": True,
     }
@@ -750,6 +762,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reactivate.add_argument("--root", required=True)
     reactivate.add_argument("--run", required=True, help="Run directory to re-activate.")
+    reactivate.add_argument(
+        "--project-hooks",
+        default=None,
+        choices=("codex", "antigravity"),
+        help="Also render project-level hook wiring (Codex: .codex/hooks.json; Antigravity: .agents/hooks.json). Useful when resuming on a different platform than the one that ran prepare-run.",
+    )
 
     append = subparsers.add_parser("append-message")
     append.add_argument("--run", required=True)
@@ -788,7 +806,9 @@ def main(argv: list[str] | None = None) -> int:
                 run_dir=Path(args.run) if args.run else None,
             )
         elif args.command == "activate-run":
-            payload = reactivate_run(Path(args.root), Path(args.run))
+            payload = reactivate_run(
+                Path(args.root), Path(args.run), project_hooks=args.project_hooks
+            )
         elif args.command == "append-message":
             payload = append_message(
                 run_dir=Path(args.run),

@@ -10,6 +10,29 @@ Append-only decision log for architectural and role-level changes to the MultiAg
 - **Forward-looking work goes in `FUTURE-PLANS.md`**, not here. Cross-link with a `See also:` line if the decision defers something.
 - **Don't edit past entries.** If a later decision overrides an earlier one, write a new entry that names the prior entry it supersedes.
 
+## 2026-07-04 — Cross-platform resume: markers always cover both AGENTS.md and CLAUDE.md; activate-run gains --project-hooks
+
+### Decision
+
+Close the two gaps that made resuming a run on a different platform than the one that started it degrade silently. First, PM-mode activation now always writes the marker block into **both** AGENTS.md and CLAUDE.md, creating whichever is missing as a marker-only stub (GEMINI.md still participates only when it already exists); `close-run` already deleted files that held nothing but the marker, so the lifecycle stays symmetric. Second, `activate-run` accepts the same `--project-hooks codex|antigravity` flag as `prepare-run`, rendering `.codex/hooks.json` / `.agents/hooks.json` on resume; existing hook files are never overwritten.
+
+### Why
+
+Run state is deliberately platform-neutral files, so cross-platform resume was already *almost* supported — but `context_files()` only used context files that already existed, meaning a Claude-started project with only CLAUDE.md never alerted a Codex session (which reads AGENTS.md) that PM mode was active, and vice versa. And a Codex/Antigravity session resuming a run prepared elsewhere had no way to get its project-level hooks short of manual copying, because `activate-run` could not render them. With both fixed, "can one platform resume the other's run" is yes, cleanly: marker visibility and hook wiring both survive the platform switch.
+
+### Files affected
+
+- `scripts/multiagent_files.py` — `context_files()` always returns AGENTS.md + CLAUDE.md (plus existing GEMINI.md); `reactivate_run()` and the `activate-run` CLI take `--project-hooks`.
+- `tests/test_multiagent_files.py` — replaced the assertion that locked in single-file markers with cross-platform coverage tests; new activate-run hook-rendering test.
+- `roles/pm.md`, `claude-code/agents/pm.md`, `antigravity/agents/pm.md`, `codex-agents/templates/pm.toml` — Resume step documents cross-platform resume and the new flag.
+- `CLAUDE.md`, `AGENTS.md`, `README.md` — helper descriptions updated.
+
+### Reversal triggers
+
+- If creating a stub context file on the "other" platform proves harmful (e.g., a harness treats a marker-only AGENTS.md as authoritative project instructions and misbehaves), revert `context_files()` to existing-files-only and instead have `activate-run` warn when the resuming platform's context file lacks the marker.
+
+---
+
 ## 2026-07-04 — Install scripts tolerate Python 3.8 (backported from a university-server deployment)
 
 ### Decision
